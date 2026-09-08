@@ -66,11 +66,27 @@
           <MenuText>Generar ALTER</MenuText>
         </Strings>
       </Button>
+
+      <Button guid="guidQuickToolsCmdSet" id="cmdidServerComboGetList" priority="0x0000" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="QuickConnectToolbarGroup" />
+        <CommandFlag>CommandWellOnly</CommandFlag>
+        <Strings>
+          <ButtonText>Servidor</ButtonText>
+        </Strings>
+      </Button>
+
+      <Button guid="guidQuickToolsCmdSet" id="cmdidDatabaseComboGetList" priority="0x0000" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="QuickConnectToolbarGroup" />
+        <CommandFlag>CommandWellOnly</CommandFlag>
+        <Strings>
+          <ButtonText>Base de datos</ButtonText>
+        </Strings>
+      </Button>
     </Buttons>
 
     <Combos>
       <Combo guid="guidQuickToolsCmdSet" id="cmdidServerCombo" priority="0x0001" type="DropDownCombo"
-             idCommandList="guidQuickToolsCmdSet:cmdidServerComboGetList" defaultWidth="140">
+             idCommandList="cmdidServerComboGetList" defaultWidth="140">
         <Parent guid="guidQuickToolsCmdSet" id="QuickConnectToolbarGroup" />
         <CommandFlag>IconAndText</CommandFlag>
         <CommandFlag>CommandWellOnly</CommandFlag>
@@ -81,7 +97,7 @@
       </Combo>
 
       <Combo guid="guidQuickToolsCmdSet" id="cmdidDatabaseCombo" priority="0x0002" type="DropDownCombo"
-             idCommandList="guidQuickToolsCmdSet:cmdidDatabaseComboGetList" defaultWidth="140">
+             idCommandList="cmdidDatabaseComboGetList" defaultWidth="140">
         <Parent guid="guidQuickToolsCmdSet" id="QuickConnectToolbarGroup" />
         <CommandFlag>IconAndText</CommandFlag>
         <CommandFlag>CommandWellOnly</CommandFlag>
