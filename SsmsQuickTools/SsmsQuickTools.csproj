@@ -1,0 +1,101 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>SsmsQuickTools</RootNamespace>
+    <AssemblyName>SsmsQuickTools</AssemblyName>
+    <UseCodebase>true</UseCodebase>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+
+    <!-- VSIX -->
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <IncludeDebugSymbolsInLocalVSIXDeployment>false</IncludeDebugSymbolsInLocalVSIXDeployment>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>false</CopyOutputSymbolsToOutputDirectory>
+    <StartAction>Program</StartAction>
+    <StartProgram Condition="'$(StartProgram)' == ''">C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\Ssms.exe</StartProgram>
+    <StartArguments>/rootsuffix Exp</StartArguments>
+    <CreateVsixContainer>true</CreateVsixContainer>
+    <DeployExtension>true</DeployExtension>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.12.2069" />
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.11.40262" ExcludeAssets="runtime" />
+    <!-- SMO (Microsoft.SqlServer.Smo.dll de SSMS 22.6) espera Microsoft.Data.SqlClient, no System.Data.SqlClient -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Ensamblados de SSMS 22.6, no redistribuibles: ver lib/ssms22.6/README.md -->
+    <Reference Include="Microsoft.SqlServer.Smo">
+      <HintPath>..\lib\ssms22.6\Microsoft.SqlServer.Smo.dll</HintPath>
+      <Private>false</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="Microsoft.SqlServer.ConnectionInfo">
+      <HintPath>..\lib\ssms22.6\Microsoft.SqlServer.ConnectionInfo.dll</HintPath>
+      <Private>false</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="Microsoft.SqlServer.ConnectionInfoExtended">
+      <HintPath>..\lib\ssms22.6\Microsoft.SqlServer.ConnectionInfoExtended.dll</HintPath>
+      <Private>false</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="Microsoft.SqlServer.Management.Sdk.Sfc">
+      <HintPath>..\lib\ssms22.6\Microsoft.SqlServer.Management.Sdk.Sfc.dll</HintPath>
+      <Private>false</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="Microsoft.SqlServer.GridControl">
+      <HintPath>..\lib\ssms22.6\Microsoft.SqlServer.GridControl.dll</HintPath>
+      <Private>false</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="SQLEditors">
+      <HintPath>..\lib\ssms22.6\SQLEditors.dll</HintPath>
+      <Private>false</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="SqlWorkbench.Interfaces">
+      <HintPath>..\lib\ssms22.6\SqlWorkbench.Interfaces.dll</HintPath>
+      <Private>false</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="Microsoft.SqlServer.RegSvrEnum">
+      <HintPath>..\lib\ssms22.6\Microsoft.SqlServer.RegSvrEnum.dll</HintPath>
+      <Private>false</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="System.Data" />
+    <Reference Include="System.Design" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <VSCTCompile Include="SsmsQuickTools.vsct">
+      <ResourceName>Menus.ctmenu</ResourceName>
+    </VSCTCompile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="source.extension.vsixmanifest">
+      <SubType>Designer</SubType>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Resources\connections.example.json">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

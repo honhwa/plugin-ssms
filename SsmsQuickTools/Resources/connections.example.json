@@ -1,0 +1,14 @@
+{
+  "servers": [
+    {
+      "name": "DEV",
+      "server": "localhost",
+      "databases": ["VentasDev", "master"]
+    },
+    {
+      "name": "PROD",
+      "server": "sql-prod01\\INST1",
+      "databases": ["Ventas", "Facturacion"]
+    }
+  ]
+}

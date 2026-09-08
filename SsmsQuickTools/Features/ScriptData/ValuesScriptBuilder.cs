@@ -1,0 +1,239 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text;
+
+namespace SsmsQuickTools.Features.ScriptData
+{
+    /// <summary>
+    /// Tipos SQL que se pueden inferir del texto de una celda de grid, en orden de
+    /// especificidad creciente (el resultado de una columna es el mayor de los tipos
+    /// de sus celdas no nulas).
+    /// </summary>
+    public enum InferredSqlType
+    {
+        Bit = 0,
+        Int = 1,
+        BigInt = 2,
+        Decimal = 3,
+        UniqueIdentifier = 4,
+        DateTime2 = 5,
+        NVarChar = 6,
+    }
+
+    /// <summary>
+    /// Genera un script SQL autocontenido (CTE + VALUES) que reproduce el resultado de un
+    /// grid al pegarlo y ejecutarlo. Logica pura, sin dependencias de SSMS: inferencia de
+    /// tipos por columna a partir del texto de las celdas, escapado y particionado en
+    /// bloques (VALUES admite hasta 1000 filas por constructor).
+    /// </summary>
+    public static class ValuesScriptBuilder
+    {
+        private const int MaxRowsPerValuesBlock = 1000;
+
+        public static readonly string NullLiteral = "NULL";
+
+        /// <summary>
+        /// Construye el script completo. <paramref name="cteName"/> nombra la CTE/tabla derivada.
+        /// </summary>
+        public static string Build(IReadOnlyList<string> columns, IReadOnlyList<string[]> rows, string cteName = "datos")
+        {
+            if (columns == null || columns.Count == 0)
+            {
+                throw new ArgumentException("Se necesita al menos una columna.", nameof(columns));
+            }
+            if (rows == null)
+            {
+                throw new ArgumentException("Filas nulas.", nameof(rows));
+            }
+
+            var quotedColumns = columns.Select(QuoteIdentifier).ToArray();
+            var columnList = string.Join(", ", quotedColumns);
+
+            if (rows.Count == 0)
+            {
+                // Sin filas: se genera un SELECT vacio tipado como NVARCHAR para que al menos
+                // ejecute sin error, aclarando que no habia datos.
+                var emptySelect = string.Join(", ", quotedColumns.Select(c => $"CAST(NULL AS nvarchar(1)) AS {c}"));
+                return $"SELECT {emptySelect} WHERE 1 = 0;";
+            }
+
+            var columnTypes = InferColumnTypes(columns.Count, rows);
+            var blocks = Partition(rows, MaxRowsPerValuesBlock);
+
+            var sb = new StringBuilder();
+            sb.Append("WITH ").Append(QuoteIdentifier(cteName)).Append(" (").Append(columnList).Append(") AS (");
+            sb.AppendLine();
+
+            for (var b = 0; b < blocks.Count; b++)
+            {
+                if (b > 0)
+                {
+                    sb.AppendLine("    UNION ALL");
+                }
+                sb.AppendLine("    SELECT * FROM (VALUES");
+                AppendValuesBlock(sb, blocks[b], columnTypes);
+                sb.Append("    ) v (").Append(columnList).Append(")");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine(")");
+            sb.Append("SELECT * FROM ").Append(QuoteIdentifier(cteName)).AppendLine(";");
+            return sb.ToString();
+        }
+
+        private static void AppendValuesBlock(StringBuilder sb, IReadOnlyList<string[]> rows, InferredSqlType[] columnTypes)
+        {
+            for (var r = 0; r < rows.Count; r++)
+            {
+                var row = rows[r];
+                sb.Append("        (");
+                for (var c = 0; c < columnTypes.Length; c++)
+                {
+                    if (c > 0)
+                    {
+                        sb.Append(", ");
+                    }
+
+                    var raw = c < row.Length ? row[c] : null;
+                    var literal = FormatLiteral(raw, columnTypes[c]);
+
+                    // El CAST explicito en la primera fila de CADA bloque VALUES fija el tipo
+                    // de esa tabla derivada (cada bloque UNION ALL infiere tipos por su cuenta).
+                    // CAST(NULL AS tipo) es valido, asi que se aplica siempre, incluso con NULL.
+                    if (r == 0)
+                    {
+                        sb.Append("CAST(").Append(literal).Append(" AS ").Append(SqlTypeName(columnTypes[c])).Append(")");
+                    }
+                    else
+                    {
+                        sb.Append(literal);
+                    }
+                }
+                sb.Append(")");
+                if (r < rows.Count - 1)
+                {
+                    sb.Append(",");
+                }
+                sb.AppendLine();
+            }
+        }
+
+        public static InferredSqlType[] InferColumnTypes(int columnCount, IReadOnlyList<string[]> rows)
+        {
+            var types = new InferredSqlType[columnCount];
+            for (var c = 0; c < columnCount; c++)
+            {
+                var best = InferredSqlType.Bit;
+                var sawAnyValue = false;
+
+                foreach (var row in rows)
+                {
+                    var value = c < row.Length ? row[c] : null;
+                    if (IsNullText(value))
+                    {
+                        continue;
+                    }
+
+                    sawAnyValue = true;
+                    var t = InferCellType(value);
+                    if (t > best)
+                    {
+                        best = t;
+                    }
+                }
+
+                types[c] = sawAnyValue ? best : InferredSqlType.NVarChar; // columna toda NULL: texto por defecto
+            }
+
+            return types;
+        }
+
+        private static InferredSqlType InferCellType(string value)
+        {
+            if (value == "0" || value == "1")
+            {
+                return InferredSqlType.Bit;
+            }
+            if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+            {
+                return InferredSqlType.Int;
+            }
+            if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+            {
+                return InferredSqlType.BigInt;
+            }
+            if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out _))
+            {
+                return InferredSqlType.Decimal;
+            }
+            if (Guid.TryParse(value, out _))
+            {
+                return InferredSqlType.UniqueIdentifier;
+            }
+            if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+            {
+                return InferredSqlType.DateTime2;
+            }
+            return InferredSqlType.NVarChar;
+        }
+
+        private static string SqlTypeName(InferredSqlType type)
+        {
+            switch (type)
+            {
+                case InferredSqlType.Bit: return "bit";
+                case InferredSqlType.Int: return "int";
+                case InferredSqlType.BigInt: return "bigint";
+                case InferredSqlType.Decimal: return "decimal(38, 10)";
+                case InferredSqlType.UniqueIdentifier: return "uniqueidentifier";
+                case InferredSqlType.DateTime2: return "datetime2(3)";
+                default: return "nvarchar(max)";
+            }
+        }
+
+        private static string FormatLiteral(string value, InferredSqlType type)
+        {
+            if (IsNullText(value))
+            {
+                return NullLiteral;
+            }
+
+            switch (type)
+            {
+                case InferredSqlType.Bit:
+                case InferredSqlType.Int:
+                case InferredSqlType.BigInt:
+                case InferredSqlType.Decimal:
+                    return value;
+                case InferredSqlType.UniqueIdentifier:
+                    return "'" + EscapeQuotes(value) + "'";
+                case InferredSqlType.DateTime2:
+                    return "'" + EscapeQuotes(value) + "'";
+                default:
+                    return "N'" + EscapeQuotes(value) + "'";
+            }
+        }
+
+        private static bool IsNullText(string value)
+        {
+            return value == null || value == NullLiteral;
+        }
+
+        private static string EscapeQuotes(string value) => value.Replace("'", "''");
+
+        public static string QuoteIdentifier(string identifier) => "[" + identifier.Replace("]", "]]") + "]";
+
+        private static List<IReadOnlyList<string[]>> Partition(IReadOnlyList<string[]> rows, int blockSize)
+        {
+            var blocks = new List<IReadOnlyList<string[]>>();
+            for (var i = 0; i < rows.Count; i += blockSize)
+            {
+                var count = Math.Min(blockSize, rows.Count - i);
+                blocks.Add(rows.Skip(i).Take(count).ToArray());
+            }
+            return blocks;
+        }
+    }
+}

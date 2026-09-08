@@ -1,0 +1,15 @@
+## VS / build
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+*.vsix
+packages/
+TestResults/
+
+## Local config (never commit real server names/creds)
+*.local.json
+
+## Ensamblados de SSMS (propietarios, no redistribuir): cada dev los copia de su instalación
+lib/ssms22.6/*.dll

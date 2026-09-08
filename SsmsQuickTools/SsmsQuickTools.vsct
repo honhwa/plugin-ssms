@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <Extern href="stdidcmd.h" />
+  <Extern href="vsshlids.h" />
+  <Extern href="KnownImageIds.vsct" />
+
+  <Commands package="guidPackage">
+
+    <Menus>
+      <Menu guid="guidQuickToolsCmdSet" id="QuickConnectToolbar" priority="0x0000" type="Toolbar">
+        <Parent guid="guidQuickToolsCmdSet" id="0" />
+        <Strings>
+          <ButtonText>SSMS Quick Tools</ButtonText>
+          <CommandName>SSMS Quick Tools</CommandName>
+        </Strings>
+      </Menu>
+    </Menus>
+
+    <Groups>
+      <Group guid="guidQuickToolsCmdSet" id="QuickConnectToolbarGroup" priority="0x0000">
+        <Parent guid="guidQuickToolsCmdSet" id="QuickConnectToolbar" />
+      </Group>
+
+      <!-- Grupo en el menu Tools: script de datos del grid -->
+      <Group guid="guidQuickToolsCmdSet" id="ToolsMenuGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
+      </Group>
+
+      <!-- Grupo en el menu contextual del editor de codigo: Generar CREATE / Generar ALTER -->
+      <Group guid="guidEditorContextCmdSet" id="EditorContextGroup" priority="0x0500">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" />
+      </Group>
+    </Groups>
+
+    <Buttons>
+      <Button guid="guidQuickToolsCmdSet" id="cmdidScriptDataCommand" priority="0x0100" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="ToolsMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="Copy" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Copiar resultado como script SELECT</ButtonText>
+          <MenuText>Copiar resultado como script SELECT</MenuText>
+          <ToolTipText>Genera un SELECT con los datos del grid de resultados y lo copia al portapapeles</ToolTipText>
+        </Strings>
+      </Button>
+
+      <Button guid="guidEditorContextCmdSet" id="cmdidGenerateCreateCommand" priority="0x0100" type="Button">
+        <Parent guid="guidEditorContextCmdSet" id="EditorContextGroup" />
+        <Icon guid="ImageCatalogGuid" id="Add" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>Generar CREATE</ButtonText>
+          <MenuText>Generar CREATE</MenuText>
+        </Strings>
+      </Button>
+
+      <Button guid="guidEditorContextCmdSet" id="cmdidGenerateAlterCommand" priority="0x0101" type="Button">
+        <Parent guid="guidEditorContextCmdSet" id="EditorContextGroup" />
+        <Icon guid="ImageCatalogGuid" id="Rename" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>Generar ALTER</ButtonText>
+          <MenuText>Generar ALTER</MenuText>
+        </Strings>
+      </Button>
+    </Buttons>
+
+    <Combos>
+      <Combo guid="guidQuickToolsCmdSet" id="cmdidServerCombo" priority="0x0001" type="DropDownCombo"
+             idCommandList="guidQuickToolsCmdSet:cmdidServerComboGetList" defaultWidth="140">
+        <Parent guid="guidQuickToolsCmdSet" id="QuickConnectToolbarGroup" />
+        <CommandFlag>IconAndText</CommandFlag>
+        <CommandFlag>CommandWellOnly</CommandFlag>
+        <Strings>
+          <ButtonText>Servidor</ButtonText>
+          <ToolTipText>Servidor de Quick Connect (definido en connections.json)</ToolTipText>
+        </Strings>
+      </Combo>
+
+      <Combo guid="guidQuickToolsCmdSet" id="cmdidDatabaseCombo" priority="0x0002" type="DropDownCombo"
+             idCommandList="guidQuickToolsCmdSet:cmdidDatabaseComboGetList" defaultWidth="140">
+        <Parent guid="guidQuickToolsCmdSet" id="QuickConnectToolbarGroup" />
+        <CommandFlag>IconAndText</CommandFlag>
+        <CommandFlag>CommandWellOnly</CommandFlag>
+        <Strings>
+          <ButtonText>Base de datos</ButtonText>
+          <ToolTipText>Base de datos del servidor seleccionado; al elegir una, reconecta la ventana de query activa</ToolTipText>
+        </Strings>
+      </Combo>
+    </Combos>
+
+  </Commands>
+
+  <KeyBindings>
+    <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidScriptDataCommand" editor="guidVSStd97" key1="D" mod1="Control Shift" />
+  </KeyBindings>
+
+  <Symbols>
+    <GuidSymbol name="guidPackage" value="{016d6f06-3db3-4bd2-a0b7-c19e4d1a3232}" />
+
+    <GuidSymbol name="guidQuickToolsCmdSet" value="{2e7f3eab-6748-4aa6-bdcf-9c69e43a48fd}">
+      <IDSymbol name="QuickConnectToolbar" value="0x1000" />
+      <IDSymbol name="QuickConnectToolbarGroup" value="0x1001" />
+      <IDSymbol name="ToolsMenuGroup" value="0x1002" />
+
+      <IDSymbol name="cmdidServerCombo" value="0x0100" />
+      <IDSymbol name="cmdidServerComboGetList" value="0x0101" />
+      <IDSymbol name="cmdidDatabaseCombo" value="0x0102" />
+      <IDSymbol name="cmdidDatabaseComboGetList" value="0x0103" />
+
+      <IDSymbol name="cmdidScriptDataCommand" value="0x0200" />
+    </GuidSymbol>
+
+    <GuidSymbol name="guidEditorContextCmdSet" value="{d71b3e2f-929e-4f15-9652-e299c6a4b288}">
+      <IDSymbol name="EditorContextGroup" value="0x2001" />
+      <IDSymbol name="cmdidGenerateCreateCommand" value="0x0300" />
+      <IDSymbol name="cmdidGenerateAlterCommand" value="0x0301" />
+    </GuidSymbol>
+  </Symbols>
+
+</CommandTable>
