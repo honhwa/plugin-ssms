@@ -7,7 +7,7 @@ namespace SsmsQuickTools.Tests
     public class ValuesScriptBuilderTests
     {
         [Fact]
-        public void Build_TiposMixtos_GeneraCastEnPrimeraFila()
+        public void Build_TiposMixtos_SinCast()
         {
             var columns = new List<string> { "Id", "Nombre", "Fecha" };
             var rows = new List<string[]>
@@ -18,9 +18,8 @@ namespace SsmsQuickTools.Tests
 
             var sql = ValuesScriptBuilder.Build(columns, rows);
 
-            Assert.Contains("CAST(1 AS int)", sql);
-            Assert.Contains("CAST(N'Ana' AS nvarchar(max))", sql);
-            Assert.Contains("CAST('2026-01-15' AS datetime2(3))", sql);
+            Assert.DoesNotContain("CAST(", sql);
+            Assert.Contains("(1, N'Ana', '2026-01-15')", sql);
             Assert.Contains("N'Lu''is'", sql); // escapado de comilla simple
             Assert.Contains("WITH [datos]", sql);
             Assert.Contains("SELECT * FROM [datos]", sql);
@@ -38,7 +37,7 @@ namespace SsmsQuickTools.Tests
 
             var sql = ValuesScriptBuilder.Build(columns, rows);
 
-            Assert.Contains("CAST(NULL AS nvarchar(max))", sql);
+            Assert.Contains("(1, NULL)", sql);
             Assert.Contains("N'algo'", sql);
         }
 
@@ -54,7 +53,7 @@ namespace SsmsQuickTools.Tests
 
             var sql = ValuesScriptBuilder.Build(columns, rows);
 
-            Assert.Contains("CAST(NULL AS nvarchar(max))", sql);
+            Assert.Contains("(1, NULL)", sql);
         }
 
         [Fact]
@@ -81,9 +80,7 @@ namespace SsmsQuickTools.Tests
             var sql = ValuesScriptBuilder.Build(columns, rows);
 
             Assert.Contains("UNION ALL", sql);
-            // cada bloque castea su propia primera fila
-            var castCount = System.Text.RegularExpressions.Regex.Matches(sql, "CAST\\(").Count;
-            Assert.Equal(2, castCount);
+            Assert.DoesNotContain("CAST(", sql);
         }
 
         [Theory]
@@ -107,6 +104,135 @@ namespace SsmsQuickTools.Tests
         public void QuoteIdentifier_EscapaCorcheteDeCierre()
         {
             Assert.Equal("[a]]b]", ValuesScriptBuilder.QuoteIdentifier("a]b"));
+        }
+
+        [Fact]
+        public void Build_DecimalConSeparadorDeMiles_GeneraLiteralInvalido()
+        {
+            // Defecto conocido: decimal.TryParse con NumberStyles.Number acepta "1,234.56",
+            // pero FormatLiteral emite el texto crudo (sin quitar la coma), que no es SQL valido.
+            var columns = new List<string> { "Monto" };
+            var rows = new List<string[]> { new[] { "1,234.56" } };
+
+            var sql = ValuesScriptBuilder.Build(columns, rows);
+
+            Assert.Contains("(1,234.56)", sql); // literal invalido: SQL Server lo leeria como 2 columnas
+        }
+
+        [Fact]
+        public void Build_CeldaVaciaJuntoAValoresNumericos_DegradaLaColumnaANvarchar()
+        {
+            // "" no matchea IsNullText (solo null o el texto "NULL") ni ningun TryParse
+            // numerico, asi que InferCellType la clasifica NVarChar; al ser el tipo mas
+            // especifico de la columna, hasta la fila "5" pasa a citarse como N'5'. No es
+            // invalido, pero rompe la expectativa de que quede como entero.
+            var columns = new List<string> { "Id", "Cantidad" };
+            var rows = new List<string[]>
+            {
+                new[] { "1", "5" },
+                new[] { "2", "" },
+            };
+
+            var sql = ValuesScriptBuilder.Build(columns, rows);
+
+            Assert.Contains("(1, N'5')", sql);
+            Assert.Contains("(2, N'')", sql);
+        }
+
+        [Fact]
+        public void Build_TextoLiteralNull_SeConfundeConNullReal()
+        {
+            // Ambiguedad inherente al TSV del grid: no hay forma de distinguir un nvarchar
+            // cuyo VALOR es la cadena "NULL" de una celda realmente NULL.
+            var columns = new List<string> { "Comentario" };
+            var rows = new List<string[]> { new[] { "NULL" } };
+
+            var sql = ValuesScriptBuilder.Build(columns, rows);
+
+            Assert.Contains("(NULL)", sql);
+            Assert.DoesNotContain("N'NULL'", sql);
+        }
+
+        [Fact]
+        public void Build_DateTimeConMilisegundosYConSieteDecimales_SeFormateaComoTextoLiteral()
+        {
+            var columns = new List<string> { "ConMs", "ConSieteDecimales" };
+            var rows = new List<string[]>
+            {
+                new[] { "2026-01-15 10:30:00.123", "2026-01-15 10:30:00.1234567" },
+            };
+
+            var sql = ValuesScriptBuilder.Build(columns, rows);
+
+            Assert.Contains("'2026-01-15 10:30:00.123'", sql);
+            Assert.Contains("'2026-01-15 10:30:00.1234567'", sql);
+        }
+
+        [Fact]
+        public void Build_ColumnaSoloDeHora_SeInfiereComoDateTime2()
+        {
+            var columns = new List<string> { "Hora" };
+            var rows = new List<string[]> { new[] { "14:30:00" } };
+
+            var types = ValuesScriptBuilder.InferColumnTypes(1, rows);
+
+            Assert.Equal(InferredSqlType.DateTime2, types[0]);
+        }
+
+        [Fact]
+        public void Build_Varbinary_SeTrataComoTextoNvarchar()
+        {
+            // Defecto conocido / limitacion aceptada: el grid solo expone texto, asi que un
+            // varbinary renderizado como "0x41424344" termina como N'0x...', no como binario.
+            var columns = new List<string> { "Datos" };
+            var rows = new List<string[]> { new[] { "0x41424344" } };
+
+            var sql = ValuesScriptBuilder.Build(columns, rows);
+
+            Assert.Contains("N'0x41424344'", sql);
+        }
+
+        [Fact]
+        public void Build_NombresDeColumnaDuplicadosOConEspacios_SeCitanIgual()
+        {
+            var columns = new List<string> { "Id", "Id", "Nombre Completo", "(No column name)" };
+            var rows = new List<string[]> { new[] { "1", "2", "Ana", "x" } };
+
+            var sql = ValuesScriptBuilder.Build(columns, rows);
+
+            // No hay des-duplicacion: la CTE resultante repite [Id], invalida para SQL Server.
+            Assert.Contains("[Id], [Id], [Nombre Completo], [(No column name)]", sql);
+        }
+
+        [Fact]
+        public void Build_MilQuinientasFilasConColumnaNullEnSegundoBloque_CadaBloqueInfiereSuTipo()
+        {
+            var columns = new List<string> { "Id", "Extra" };
+            var rows = new List<string[]>();
+            for (var i = 0; i < 1000; i++)
+            {
+                rows.Add(new[] { i.ToString(), "1" });
+            }
+            for (var i = 1000; i < 1500; i++)
+            {
+                rows.Add(new[] { i.ToString(), "NULL" });
+            }
+
+            var sql = ValuesScriptBuilder.Build(columns, rows);
+
+            Assert.Contains("UNION ALL", sql);
+            Assert.Contains("(1000, NULL)", sql);
+        }
+
+        [Fact]
+        public void Build_UnicodeYComillasDobles_SeEscapaCorrectamente()
+        {
+            var columns = new List<string> { "Texto" };
+            var rows = new List<string[]> { new[] { "Ñoño \"citado\" áéíóú" } };
+
+            var sql = ValuesScriptBuilder.Build(columns, rows);
+
+            Assert.Contains("N'Ñoño \"citado\" áéíóú'", sql);
         }
     }
 }

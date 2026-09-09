@@ -10,6 +10,11 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <!-- Mismo cliente que usa SsmsHost.cs para hablar con el motor; se usa solo en
+         ScriptRoundTripTests, que se saltan si SSMSQT_TEST_CONNECTION no esta definida. -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <!-- Skip.IfNot(...) para saltar ScriptRoundTripTests en verde cuando no hay servidor. -->
+    <PackageReference Include="Xunit.SkippableFact" Version="1.4.13" />
   </ItemGroup>
 
   <ItemGroup>
@@ -18,6 +23,12 @@
     <Compile Include="..\SsmsQuickTools\Features\ScriptData\ValuesScriptBuilder.cs" Link="ScriptData\ValuesScriptBuilder.cs" />
     <Compile Include="..\SsmsQuickTools\Features\ScriptObject\ObjectNameParser.cs" Link="ScriptObject\ObjectNameParser.cs" />
     <Compile Include="..\SsmsQuickTools\Features\ScriptObject\CreateAlterRewriter.cs" Link="ScriptObject\CreateAlterRewriter.cs" />
+    <Compile Include="..\SsmsQuickTools\Ssms\TsvParser.cs" Link="Ssms\TsvParser.cs" />
+    <Compile Include="..\SsmsQuickTools\Ssms\IResultSetReader.cs" Link="Ssms\IResultSetReader.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

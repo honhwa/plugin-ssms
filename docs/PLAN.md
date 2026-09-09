@@ -150,14 +150,16 @@ Salida en portapapeles:
 ```sql
 WITH datos (Id, Nombre, Fecha) AS (
     SELECT * FROM (VALUES
-        (CAST(1 AS int), CAST(N'Ana' AS nvarchar(50)), CAST('2026-01-15' AS datetime2)),
+        (1, N'Ana', '2026-01-15'),
         (2, N'Luis', '2026-02-01')
     ) v (Id, Nombre, Fecha)
 )
 SELECT * FROM datos;
 ```
 
-El `CAST` explícito solo en la primera fila fija el tipo de toda la tabla derivada. Límite configurable de filas (por defecto 1000) con confirmación si se supera. `VALUES` admite hasta 1000 filas por constructor: por encima de eso, dividir en varios `SELECT ... UNION ALL` de bloques de 1000.
+Sin `CAST` explícito: literales simples (números, `NULL`) y con prefijo `N'...'`/comillas para texto, fecha y GUID; el tipo de columna lo infiere el motor a partir de todos los literales de la tabla derivada. Límite configurable de filas (por defecto 1000) con confirmación si se supera. `VALUES` admite hasta 1000 filas por constructor: por encima de eso, dividir en varios `SELECT ... UNION ALL` de bloques de 1000.
+
+**Corrección verificada contra el motor (`SsmsQuickTools.Tests/ScriptRoundTripTests.cs`):** la inferencia de tipo del motor solo aplica a literales numéricos sin comillas (`int`/`bigint`/`decimal`/`bit`). Un literal entre comillas simples (`datetime2`, `uniqueidentifier`) **no se convierte** — nada en `SELECT * FROM datos` fuerza esa conversión, así que la columna vuelve como `varchar`/`nvarchar`, no como fecha o GUID reales. Confirmado con `SQL_VARIANT_PROPERTY(..., 'BaseType')` contra `LENOVOJOSE\DEV01`. El valor pegado y re-ejecutado se ve igual en el grid, pero downstream (`WHERE Fecha > @p datetime2`, `INSERT INTO` una columna tipada) puede requerir conversión implícita/explícita que antes el `CAST` daba gratis. Aceptado como limitación conocida por ahora; no bloquea M2.
 
 Comando expuesto en el menú contextual del grid de resultados y en **Tools**, con atajo de teclado.
 
@@ -179,6 +181,7 @@ Todo se verifica contra SSMS real; no hay pruebas automatizadas de la capa de UI
 - **M0**: la extensión aparece en Extensions → Manage Extensions y el comando de prueba responde.
 - **M1**: editar `connections.json` con dos servidores; los combos se pueblan; seleccionar una base cambia la conexión de la ventana activa (verificar con `SELECT @@SERVERNAME, DB_NAME()`).
 - **M2**: ejecutar una consulta con columnas de tipos mixtos (int, nvarchar con comilla simple, datetime, NULL, decimal, uniqueidentifier, bit); usar el comando; pegar el resultado en una ventana nueva y confirmar que ejecuta y devuelve las mismas filas. Repetir con selección parcial de celdas y con más de 1000 filas.
+  **Hecho** (2026-09-09, contra `LENOVOJOSE\DEV01`/`Figuritas`): checklist manual completo (comando por Tools y por Ctrl+Shift+D, selección parcial de filas, dos result sets, >1000 filas con confirmación, casos de error). Los TSV capturados quedaron como fixtures reales en `SsmsQuickTools.Tests/Fixtures/` (`tipos_mixtos.tsv`, `tipos_mixtos_seleccion_parcial.tsv`, `volumen_1500filas.tsv`) y se ejecutan automáticamente en `ScriptRoundTripTests.cs` cuando `SSMSQT_TEST_CONNECTION` está definida (esas capturas se hicieron sin encabezado a propósito, así que se les agregó a mano el header conocido de cada consulta antes de usarlas como fixture). Pendiente todavía: el fallback de `ClipboardTsvReader` con "Include column headers when copying or saving results" desactivado en Tools → Options — sin encabezado real, toma la primera fila de datos como encabezado y la pierde en silencio; ese caso concreto (deliberado, "qué pasa si me olvido la opción") no se ejercitó todavía en la UI. Tampoco se confirmó selección parcial de *columnas* (la captura recibida trajo filas completas), solo de filas.
 - **M3**: probar sobre una tabla, una vista, un procedimiento y una función; con nombre completo y con nombre simple; y con un objeto inexistente (debe avisar sin excepción).
 - Prueba de regresión de riesgo: reiniciar SSMS varias veces y confirmar que no se degrada el arranque ni aparecen errores en `%AppData%\Microsoft\SSMS\ActivityLog.xml` (arrancar con `Ssms.exe /log` para generarlo).
 
