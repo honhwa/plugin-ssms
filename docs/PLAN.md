@@ -127,8 +127,33 @@ En el `.vsct`, dos combos en una toolbar propia:
 ```
 
 - Un handler responde con la lista (`OleMenuCmdEventArgs.OutValue` = `string[]`) y otro con la selección.
-- El combo de bases se repuebla al cambiar el de servidores.
-- Al seleccionar base: obtener la conexión activa con `ServiceCache.ScriptFactory.CurrentlyActiveWndConnectionInfo` y cambiar la conexión de la ventana activa. Si cambiar la conexión in-place resulta inestable, el fallback es `ServiceCache.ScriptFactory.CreateNewBlankScript(ScriptType.Sql, connectionInfo, null)` — decidir al probar.
+- El combo de bases se repuebla al cambiar el de servidores (no reconecta nada por sí solo).
+- Al seleccionar base: `SsmsHost.TryReconnectActiveWindow` reconecta **in-place** la ventana de query
+  activa, sin abrir una ventana nueva salvo que no haya ninguna. Verificado por IL
+  (`ildasm` sobre `lib/ssms22.6/SQLEditors.dll`, SSMS 22.6.11806.211) contra
+  `ScriptAndResultsEditorControl`/`SqlScriptEditorControl`:
+  - **Mismo servidor** (compara `ServerName` + `AuthenticationType` con la conexión activa,
+    `ISqlToolsWindowWithConnectionState.Connection`): solo cambia la propiedad pública
+    `SqlScriptEditorControl.CurrentDB`, la misma vía que usa el combo de bases nativo de SSMS
+    (`ChangeDatabase` internamente). No abre ninguna conexión ADO.NET propia.
+  - **Servidor distinto, o ventana sin conectar**: si estaba conectada, primero `Disconnect()`
+    (miembro `family`, declarado en `ScriptAndResultsEditorControl`) — sin esto,
+    `ISqlScriptWindowWithConnection.SetConnection(info, dbConnection)` rechaza con
+    `InvalidOperationException` ("no se puede cambiar la conexión cuando ya se está conectado",
+    chequeo interno atado a `IsConnected`/`m_connection`, no a la propiedad pública). Luego
+    `SetConnection(info, dbConnection)` con una conexión ADO.NET ya abierta por la extensión, y como
+    mejor esfuerzo `OnScriptGotNewConnection(m_connectionInfoList, m_connection)` (miembro interno,
+    también en la clase base) para refrescar barra de estado y combo de base nativos.
+  - **Guardas antes de tocar la conexión**: `IsExecuting` (propiedad `family` de
+    `ScriptAndResultsEditorControl`) y `SELECT @@TRANCOUNT` sobre la conexión activa; si hay una
+    consulta en ejecución o una transacción abierta, se aborta con aviso sin desconectar nada (no se
+    usan los diálogos de commit/rollback propios de SSMS).
+  - Todos los miembros no públicos se resuelven por reflection con nombre en constante y
+    `try/catch`, buscando el tipo de la jerarquía que los declara (`ScriptAndResultsEditorControl` o
+    `SqlScriptEditorControl` según el caso) — igual criterio de aislamiento que `GridReader`.
+  - **Sin ninguna ventana de query activa** (foco en Object Explorer, o ninguna ventana abierta): se
+    abre una ventana nueva conectada (`ScriptFactory.Instance.CreateNewBlankScript`), único caso en
+    que Quick Connect crea una ventana.
 
 ## Milestone 2 — Grid → script SELECT (parte de mayor riesgo)
 
@@ -165,7 +190,15 @@ Comando expuesto en el menú contextual del grid de resultados y en **Tools**, c
 
 ## Milestone 3 — Generar ALTER / Generar CREATE
 
-1. Menú contextual del editor: grupo bajo `IDM_VS_CTXT_CODEWIN` con dos botones, "Generar CREATE" y "Generar ALTER".
+1. ~~Menú contextual del editor: grupo bajo `IDM_VS_CTXT_CODEWIN` con dos botones~~. **Descartado
+   tras verificación empírica (2026-09-09) contra SSMS 22.6**: el editor de query de SSMS arma su
+   menú contextual ("Ventana Código" en Personalizar → Comandos → Menú contextual) a mano, no
+   fusiona grupos de terceros vía VSCT pese a aparecer como "customizable" en ese diálogo — se
+   probó con `IDM_VS_CTXT_CODEWIN` (guid estándar de VS) y con `GUID_SQLEditorCommandSet` /
+   `IDM_SQLWB_SQLSCRIPT_CONTEXT` (guid propio de `SQLEditors.dll`, `Microsoft.SqlServer.Management.UI.VSIntegration.Editors.SQLWorkbenchCommands`),
+   ninguno se fusiona. En su lugar: "Generar CREATE" y "Generar ALTER" van en el menú **Tools**
+   (mismo grupo que "Copiar resultado como script SELECT") con atajo de teclado
+   (`Ctrl+Shift+C` / `Ctrl+Shift+A`).
 2. Texto seleccionado vía `IVsTextManager.GetActiveView` → `IVsTextView.GetSelectedText()`; si no hay selección, tomar la palabra bajo el cursor.
 3. `ObjectNameParser` normaliza `[db].[schema].[obj]`, `schema.obj` u `obj` (con `dbo` y la base actual como defaults).
 4. `ObjectScripter`, sobre la conexión activa:

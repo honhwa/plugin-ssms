@@ -98,18 +98,7 @@ namespace SsmsQuickTools.Features.ScriptData
 
                     var raw = c < row.Length ? row[c] : null;
                     var literal = FormatLiteral(raw, columnTypes[c]);
-
-                    // El CAST explicito en la primera fila de CADA bloque VALUES fija el tipo
-                    // de esa tabla derivada (cada bloque UNION ALL infiere tipos por su cuenta).
-                    // CAST(NULL AS tipo) es valido, asi que se aplica siempre, incluso con NULL.
-                    if (r == 0)
-                    {
-                        sb.Append("CAST(").Append(literal).Append(" AS ").Append(SqlTypeName(columnTypes[c])).Append(")");
-                    }
-                    else
-                    {
-                        sb.Append(literal);
-                    }
+                    sb.Append(literal);
                 }
                 sb.Append(")");
                 if (r < rows.Count - 1)
@@ -177,20 +166,6 @@ namespace SsmsQuickTools.Features.ScriptData
                 return InferredSqlType.DateTime2;
             }
             return InferredSqlType.NVarChar;
-        }
-
-        private static string SqlTypeName(InferredSqlType type)
-        {
-            switch (type)
-            {
-                case InferredSqlType.Bit: return "bit";
-                case InferredSqlType.Int: return "int";
-                case InferredSqlType.BigInt: return "bigint";
-                case InferredSqlType.Decimal: return "decimal(38, 10)";
-                case InferredSqlType.UniqueIdentifier: return "uniqueidentifier";
-                case InferredSqlType.DateTime2: return "datetime2(3)";
-                default: return "nvarchar(max)";
-            }
         }
 
         private static string FormatLiteral(string value, InferredSqlType type)

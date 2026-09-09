@@ -88,9 +88,13 @@ namespace SsmsQuickTools.Features.QuickConnect
             {
                 List<ServerEntry> parsed;
                 using (var stream = new FileStream(_configPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+                using (var noBomStream = new MemoryStream(Encoding.UTF8.GetBytes(reader.ReadToEnd())))
                 {
+                    // DataContractJsonSerializer no tolera un BOM UTF-8 al inicio del stream
+                    // (falla en silencio en ReadObject); se relee como texto y se recodifica sin BOM.
                     var serializer = new DataContractJsonSerializer(typeof(ConnectionsFile));
-                    var file = (ConnectionsFile)serializer.ReadObject(stream) ?? new ConnectionsFile();
+                    var file = (ConnectionsFile)serializer.ReadObject(noBomStream) ?? new ConnectionsFile();
                     parsed = file.Servers
                         .Where(s => !string.IsNullOrWhiteSpace(s.Name) && !string.IsNullOrWhiteSpace(s.Server))
                         .Select(s => new ServerEntry
@@ -127,7 +131,7 @@ namespace SsmsQuickTools.Features.QuickConnect
     { ""name"": ""LOCAL"", ""server"": ""localhost"", ""databases"": [ ""master"" ] }
   ]
 }";
-            File.WriteAllText(path, example, Encoding.UTF8);
+            File.WriteAllText(path, example, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         }
 
         public void Dispose()

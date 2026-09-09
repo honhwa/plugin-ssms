@@ -27,10 +27,6 @@
         <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
       </Group>
 
-      <!-- Grupo en el menu contextual del editor de codigo: Generar CREATE / Generar ALTER -->
-      <Group guid="guidEditorContextCmdSet" id="EditorContextGroup" priority="0x0500">
-        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" />
-      </Group>
     </Groups>
 
     <Buttons>
@@ -45,8 +41,12 @@
         </Strings>
       </Button>
 
-      <Button guid="guidEditorContextCmdSet" id="cmdidGenerateCreateCommand" priority="0x0100" type="Button">
-        <Parent guid="guidEditorContextCmdSet" id="EditorContextGroup" />
+      <!-- Generar CREATE / Generar ALTER: se intento primero como menu contextual del editor de
+           codigo, pero el editor de query de SSMS arma su popup a mano y no fusiona grupos de
+           terceros pese a aparecer como "customizable" en Personalizar (confirmado empiricamente
+           contra SSMS 22.6). Quedan en Tools + atajo, igual que ScriptData (ver docs/PLAN.md M3). -->
+      <Button guid="guidEditorContextCmdSet" id="cmdidGenerateCreateCommand" priority="0x0110" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="ToolsMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="Add" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
@@ -56,8 +56,8 @@
         </Strings>
       </Button>
 
-      <Button guid="guidEditorContextCmdSet" id="cmdidGenerateAlterCommand" priority="0x0101" type="Button">
-        <Parent guid="guidEditorContextCmdSet" id="EditorContextGroup" />
+      <Button guid="guidEditorContextCmdSet" id="cmdidGenerateAlterCommand" priority="0x0111" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="ToolsMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="Rename" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
@@ -112,6 +112,8 @@
 
   <KeyBindings>
     <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidScriptDataCommand" editor="guidVSStd97" key1="D" mod1="Control Shift" />
+    <KeyBinding guid="guidEditorContextCmdSet" id="cmdidGenerateCreateCommand" editor="guidVSStd97" key1="C" mod1="Control Shift" />
+    <KeyBinding guid="guidEditorContextCmdSet" id="cmdidGenerateAlterCommand" editor="guidVSStd97" key1="A" mod1="Control Shift" />
   </KeyBindings>
 
   <Symbols>
@@ -131,7 +133,6 @@
     </GuidSymbol>
 
     <GuidSymbol name="guidEditorContextCmdSet" value="{d71b3e2f-929e-4f15-9652-e299c6a4b288}">
-      <IDSymbol name="EditorContextGroup" value="0x2001" />
       <IDSymbol name="cmdidGenerateCreateCommand" value="0x0300" />
       <IDSymbol name="cmdidGenerateAlterCommand" value="0x0301" />
     </GuidSymbol>

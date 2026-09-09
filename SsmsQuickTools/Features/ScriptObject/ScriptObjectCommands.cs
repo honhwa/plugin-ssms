@@ -50,6 +50,10 @@ namespace SsmsQuickTools.Features.ScriptObject
             // objeto del texto activo. La verificacion de si el objeto existe (y si admite
             // ALTER, ej. las tablas no) se hace recien al ejecutar, para no pegarle a la base
             // de datos en cada apertura del menu contextual.
+            // Visible solo si hay una ventana de query conectada y se puede leer un nombre de
+            // objeto del texto activo. La verificacion de si el objeto existe (y si admite
+            // ALTER, ej. las tablas no) se hace recien al ejecutar, para no pegarle a la base
+            // de datos en cada apertura del menu contextual.
             var connectionInfo = SsmsHost.GetActiveConnectionInfo();
             var candidateText = GetCandidateText();
             var parsed = ObjectNameParser.Parse(candidateText);
@@ -108,16 +112,16 @@ namespace SsmsQuickTools.Features.ScriptObject
                 // no bloquea el flujo si el portapapeles esta ocupado por otro proceso
             }
 
-            SsmsHost.OpenNewScriptWindow(result.Sql, connectionInfo);
+            SsmsHost.OpenNewScriptWindow(result.Sql, connectionInfo, null);
         }
 
         /// <summary>
-        /// Texto seleccionado en el editor, o (si no hay seleccion) idealmente la palabra bajo
-        /// el cursor. Por ahora solo cubre la seleccion explicita; ver docs/PLAN.md Milestone 3.
+        /// Texto seleccionado en el editor, o (si no hay seleccion) la palabra bajo el cursor.
         /// </summary>
         private static string GetCandidateText()
         {
-            return SsmsHost.GetActiveSelectedText();
+            var selected = SsmsHost.GetActiveSelectedText();
+            return string.IsNullOrWhiteSpace(selected) ? SsmsHost.GetWordUnderCursor() : selected;
         }
     }
 }

@@ -1,7 +1,9 @@
 using System;
 using System.ComponentModel.Design;
+using System.Data;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
 using Microsoft.SqlServer.Management.Smo.RegSvrEnum;
 using Microsoft.VisualStudio.Shell;
 using SsmsQuickTools.Ssms;
@@ -126,17 +128,65 @@ namespace SsmsQuickTools.Features.QuickConnect
                 ServerName = server.Server,
                 AuthenticationType = 0, // Windows Authentication
                 ApplicationName = "SsmsQuickTools",
+                // Database Engine: sin este GUID, VerifyConnectionInfo (ConnectionDlg.dll) rechaza
+                // la conexion con "Tipo de conexion inesperado".
+                ServerType = new Guid("8c91a03d-f9b4-46c0-a305-b5dcc79ff907"),
             };
             connectionInfo.AdvancedOptions["DATABASE"] = _selectedDatabaseName;
 
-            if (SsmsHost.TrySetActiveWindowConnection(connectionInfo, out var failureReason))
-            {
-                return;
-            }
+            // Reconecta in-place la ventana activa (mismo servidor: solo cambia de base; servidor
+            // distinto: desconecta y reconecta). OpenConnection solo se invoca cuando SsmsHost
+            // necesita una conexion ADO.NET nueva para una reconexion completa; en ese caso la
+            // conexion queda en poder de SsmsHost (adoptada por la ventana si tiene exito,
+            // descartada si falla).
+            var outcome = SsmsHost.TryReconnectActiveWindow(
+                connectionInfo,
+                _selectedDatabaseName,
+                () => OpenConnection(connectionInfo, _selectedDatabaseName),
+                out var reason);
 
-            // Sin ventana de query activa (o no reconectable): se abre una nueva ya conectada
-            // a la base elegida en lugar de fallar en silencio.
-            SsmsHost.OpenNewScriptWindow(null, connectionInfo);
+            switch (outcome)
+            {
+                case ReconnectOutcome.DatabaseChanged:
+                case ReconnectOutcome.Reconnected:
+                    return;
+
+                case ReconnectOutcome.NoQueryWindow:
+                    // No hay ninguna ventana de query activa: se abre una nueva ya conectada, con
+                    // una conexion ADO.NET propia (SsmsHost no abrio ninguna para este caso).
+                    var dbConnection = OpenConnection(connectionInfo, _selectedDatabaseName);
+                    try
+                    {
+                        SsmsHost.OpenNewScriptWindow(null, connectionInfo, dbConnection);
+                    }
+                    catch
+                    {
+                        dbConnection.Dispose();
+                        throw;
+                    }
+                    return;
+
+                case ReconnectOutcome.Blocked:
+                case ReconnectOutcome.Failed:
+                    MessageBox.Show(reason, "SSMS Quick Tools", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+            }
+        }
+
+        private static IDbConnection OpenConnection(UIConnectionInfo connectionInfo, string database)
+        {
+            var dbConnection = new Microsoft.Data.SqlClient.SqlConnection(
+                SsmsHost.BuildConnectionString(connectionInfo, database));
+            try
+            {
+                dbConnection.Open();
+                return dbConnection;
+            }
+            catch
+            {
+                dbConnection.Dispose();
+                throw;
+            }
         }
     }
 }

@@ -1,0 +1,108 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+`SsmsQuickTools` is a VSIX extension for SQL Server Management Studio **22.6.0+**. SSMS 21+ is built on the
+VS2022 shell and accepts `.vsix` installs, but Microsoft gives **no official support** for third-party
+extensions there — an SSMS update can break this at any time. Full design rationale, risk analysis, and
+milestone plan live in `docs/PLAN.md`; read it before touching `Ssms/` or `ScriptObject/`.
+
+Three features:
+1. **Quick Connect** — toolbar combos (Servidor/Base de datos) that reconnect the active query window to a
+   server/database from a local `connections.json`.
+2. **Grid → Script** — copies the active result grid as a self-contained `SELECT` script (CTE + `VALUES`) to
+   the clipboard.
+3. **Generar CREATE / Generar ALTER** — editor context-menu commands that script the object under selection.
+
+## Build
+
+Requires Visual Studio 2022 (17.14+) with the **Visual Studio extension development** workload, SSMS 22.6.0+
+installed locally, and .NET Framework 4.8 Developer Pack.
+
+```
+msbuild SsmsQuickTools.sln -t:Restore
+msbuild SsmsQuickTools.sln -t:Rebuild -p:Configuration=Release
+```
+
+Output VSIX: `SsmsQuickTools\bin\Release\net48\SsmsQuickTools.vsix` (or `bin\Debug\...` for Debug).
+
+`SsmsQuickTools.csproj` is SDK-style (`Microsoft.NET.Sdk`) but needs `Microsoft.VsSDK.targets` for VSIX
+packaging, which isn't auto-imported by `PackageReference` in SDK-style projects. The csproj therefore uses
+explicit `<Import Project="Sdk.props" .../>` / `<Import Project="Sdk.targets" .../>` instead of the
+`Sdk="Microsoft.NET.Sdk"` shorthand, with `Microsoft.VsSDK.targets` imported *after* `Sdk.targets` — it
+depends on `$(IntermediateOutputPath)`, which only exists once `Sdk.targets` has run. If VSIX generation
+silently stops (no `.vsix` in the output dir, no error), check this import order first.
+
+Debugging: project properties → Debug → Start external program → `Ssms.exe`, argument `/rootsuffix Exp` if
+the experimental hive exists. `StartProgram`/`StartArguments` are already set in the csproj to
+`C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\Ssms.exe /rootsuffix Exp`.
+
+Installed extensions live under `%LocalAppData%\Microsoft\SSMS\<version_id>\Extensions\` — useful for
+cleaning up broken installs.
+
+## Tests
+
+`SsmsQuickTools.Tests` is xUnit and covers only the pure-logic pieces that have no SSMS dependency:
+`ValuesScriptBuilder` (type inference, escaping, VALUES batching) and `ObjectNameParser` (name parsing).
+Everything else (grid reading, SMO scripting, connection switching) is verified manually against a real
+SSMS instance — see the "Verificación" section of `docs/PLAN.md` for the manual checklist.
+
+```
+dotnet test SsmsQuickTools.Tests
+```
+
+## Architecture
+
+**`SsmsQuickToolsPackage`** (`AsyncPackage`) is the entry point. SSMS never has a solution open, so it
+autoloads on `UICONTEXT.NoSolution` rather than any command-based trigger. `InitializeAsync` wires up three
+independent command groups, each self-registering against the shared `OleMenuCommandService`:
+`QuickConnectCommands`, `ScriptDataCommand`, `ScriptObjectCommands`.
+
+**`Ssms/SsmsHost.cs`** is the single access point to SSMS's internal, undocumented APIs
+(`SQLEditors.dll` → `ServiceCache`/`IScriptFactory`, `SqlWorkbench.Interfaces.dll` → `UIConnectionInfo`).
+All calls here are verified against SSMS 22.6.11806.211 specifically and are the most likely thing to break
+on an SSMS update. Keep new SSMS-internals access funneled through this file rather than scattered across
+features.
+
+**`Ssms/IResultSetReader.cs`** defines the grid-reading abstraction with two implementations, used in
+fallback order:
+- `GridReader` — finds the active `GridControl` via `IVsMonitorSelection`/HWND walking (fragile bit,
+  isolated on purpose), then reads data through the *public* `IGridControl` interface rather than internal
+  reflection once the instance is found.
+- `ClipboardTsvReader` — parses TSV from the clipboard (requires SSMS's "include column headers" option);
+  used automatically if `GridReader` fails.
+
+Both feed `TsvParser` and produce a `ResultSetData` (columns + string rows — no SQL types; typing happens
+later).
+
+**`Features/`** — one folder per feature, each independent of the others:
+- `QuickConnect/` — `ConnectionCatalog` loads/watches `%APPDATA%\SsmsQuickTools\connections.json`
+  (Windows-integrated auth only, no credentials in the file); `QuickConnectCommands` drives the two toolbar
+  combos and reconnects the active query window via `SsmsHost`.
+- `ScriptData/` — `ValuesScriptBuilder` is pure logic: per-column type inference over a fixed lattice
+  (`bit → int → bigint → decimal → uniqueidentifier → datetime2 → nvarchar`, picking the most restrictive
+  type that fits every non-null value in the column), quote escaping, and splitting into multiple
+  `VALUES`/`UNION ALL` blocks past 1000 rows (a hard SQL Server `VALUES` limit). `ScriptDataCommand` wires
+  `GridReader`/`ClipboardTsvReader` → `ValuesScriptBuilder` → clipboard.
+- `ScriptObject/` — `ObjectNameParser` normalizes `[db].[schema].[obj]`/`schema.obj`/`obj` (pure logic).
+  `ObjectScripter` scripts programmable objects (proc/view/function/trigger) via
+  `OBJECT_DEFINITION(OBJECT_ID(...))` and tables via SMO `Scripter`; `CreateAlterRewriter` turns a CREATE
+  script into ALTER by regex-replacing the first `CREATE` token (tables have no ALTER equivalent — that
+  path is disabled for them). `ScriptObjectCommands` reads the selection/word-under-cursor and drives it.
+
+## SSMS reference assemblies (`lib/ssms22.6/`)
+
+Committed DLLs copied from a local SSMS 22.6 install (`Common7\IDE` and
+`Common7\IDE\Extensions\Application`), referenced with `HintPath`, `Private=false`,
+`SpecificVersion=false`. They exist only to compile against — not redistributed in the VSIX. See
+`lib/ssms22.6/README.md` for exactly which types come from which DLL and why.
+
+**Always reference the lowest supported SSMS version's DLLs (22.6.0), not whatever is installed locally.**
+.NET Framework binds these by strong name; a reference built against a newer assembly won't load against an
+older SSMS install. If the dev machine has a newer SSMS, copy that machine's 22.6.0 DLLs into
+`lib/ssms22.6/` rather than referencing the live install directly.
+
+`Microsoft.Data.SqlClient` is used instead of `System.Data.SqlClient` because the SMO assemblies
+(`Microsoft.SqlServer.Smo.dll` from SSMS 22.6) expect it.
