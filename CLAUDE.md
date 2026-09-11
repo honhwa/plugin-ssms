@@ -10,8 +10,8 @@ extensions there — an SSMS update can break this at any time. Full design rati
 milestone plan live in `docs/PLAN.md`; read it before touching `Ssms/` or `ScriptObject/`.
 
 Three features:
-1. **Quick Connect** — toolbar combos (Servidor/Base de datos) that reconnect the active query window to a
-   server/database from a local `connections.json`.
+1. **Quick Connect** — a single "Quick Connections" toolbar combo that reconnects the active query window to
+   a named server/database pair from a local `connections.json`.
 2. **Grid → Script** — copies the active result grid as a self-contained `SELECT` script (CTE + `VALUES`) to
    the clipboard.
 3. **Generar CREATE / Generar ALTER** — editor context-menu commands that script the object under selection.
@@ -78,9 +78,10 @@ Both feed `TsvParser` and produce a `ResultSetData` (columns + string rows — n
 later).
 
 **`Features/`** — one folder per feature, each independent of the others:
-- `QuickConnect/` — `ConnectionCatalog` loads/watches `%APPDATA%\SsmsQuickTools\connections.json`
-  (Windows-integrated auth only, no credentials in the file); `QuickConnectCommands` drives the two toolbar
-  combos and reconnects the active query window via `SsmsHost`.
+- `QuickConnect/` — `ConnectionCatalog` loads/watches `%APPDATA%\SsmsQuickTools\connections.json`, a flat
+  list of named `{name, server, database}` entries (Windows-integrated auth only, no credentials in the
+  file); `QuickConnectCommands` drives the single "Quick Connections" toolbar combo and reconnects the
+  active query window via `SsmsHost` as soon as an entry is selected.
 - `ScriptData/` — `ValuesScriptBuilder` is pure logic: per-column type inference over a fixed lattice
   (`bit → int → bigint → decimal → uniqueidentifier → datetime2 → nvarchar`, picking the most restrictive
   type that fits every non-null value in the column), quote escaping, and splitting into multiple
