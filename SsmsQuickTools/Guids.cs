@@ -26,10 +26,8 @@ namespace SsmsQuickTools
         public const uint QuickConnectToolbar = 0x1000;
         public const uint QuickConnectToolbarGroup = 0x1001;
 
-        public const uint ServerCombo = 0x0100;
-        public const uint ServerComboGetList = 0x0101;
-        public const uint DatabaseCombo = 0x0102;
-        public const uint DatabaseComboGetList = 0x0103;
+        public const uint ConnectionCombo = 0x0100;
+        public const uint ConnectionComboGetList = 0x0101;
 
         // Comando "Script de datos del grid" (Tools + menu contextual del grid)
         public const uint ScriptDataCommand = 0x0200;

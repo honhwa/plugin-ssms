@@ -67,43 +67,24 @@
         </Strings>
       </Button>
 
-      <Button guid="guidQuickToolsCmdSet" id="cmdidServerComboGetList" priority="0x0000" type="Button">
+      <Button guid="guidQuickToolsCmdSet" id="cmdidConnectionComboGetList" priority="0x0000" type="Button">
         <Parent guid="guidQuickToolsCmdSet" id="QuickConnectToolbarGroup" />
         <CommandFlag>CommandWellOnly</CommandFlag>
         <Strings>
-          <ButtonText>Servidor</ButtonText>
-        </Strings>
-      </Button>
-
-      <Button guid="guidQuickToolsCmdSet" id="cmdidDatabaseComboGetList" priority="0x0000" type="Button">
-        <Parent guid="guidQuickToolsCmdSet" id="QuickConnectToolbarGroup" />
-        <CommandFlag>CommandWellOnly</CommandFlag>
-        <Strings>
-          <ButtonText>Base de datos</ButtonText>
+          <ButtonText>Quick Connections</ButtonText>
         </Strings>
       </Button>
     </Buttons>
 
     <Combos>
-      <Combo guid="guidQuickToolsCmdSet" id="cmdidServerCombo" priority="0x0001" type="DropDownCombo"
-             idCommandList="cmdidServerComboGetList" defaultWidth="140">
+      <Combo guid="guidQuickToolsCmdSet" id="cmdidConnectionCombo" priority="0x0001" type="DropDownCombo"
+             idCommandList="cmdidConnectionComboGetList" defaultWidth="220">
         <Parent guid="guidQuickToolsCmdSet" id="QuickConnectToolbarGroup" />
         <CommandFlag>IconAndText</CommandFlag>
         <CommandFlag>CommandWellOnly</CommandFlag>
         <Strings>
-          <ButtonText>Servidor</ButtonText>
-          <ToolTipText>Servidor de Quick Connect (definido en connections.json)</ToolTipText>
-        </Strings>
-      </Combo>
-
-      <Combo guid="guidQuickToolsCmdSet" id="cmdidDatabaseCombo" priority="0x0002" type="DropDownCombo"
-             idCommandList="cmdidDatabaseComboGetList" defaultWidth="140">
-        <Parent guid="guidQuickToolsCmdSet" id="QuickConnectToolbarGroup" />
-        <CommandFlag>IconAndText</CommandFlag>
-        <CommandFlag>CommandWellOnly</CommandFlag>
-        <Strings>
-          <ButtonText>Base de datos</ButtonText>
-          <ToolTipText>Base de datos del servidor seleccionado; al elegir una, reconecta la ventana de query activa</ToolTipText>
+          <ButtonText>Quick Connections</ButtonText>
+          <ToolTipText>Conexion rapida definida en connections.json; al elegir una, reconecta la ventana de query activa</ToolTipText>
         </Strings>
       </Combo>
     </Combos>
@@ -124,10 +105,8 @@
       <IDSymbol name="QuickConnectToolbarGroup" value="0x1001" />
       <IDSymbol name="ToolsMenuGroup" value="0x1002" />
 
-      <IDSymbol name="cmdidServerCombo" value="0x0100" />
-      <IDSymbol name="cmdidServerComboGetList" value="0x0101" />
-      <IDSymbol name="cmdidDatabaseCombo" value="0x0102" />
-      <IDSymbol name="cmdidDatabaseComboGetList" value="0x0103" />
+      <IDSymbol name="cmdidConnectionCombo" value="0x0100" />
+      <IDSymbol name="cmdidConnectionComboGetList" value="0x0101" />
 
       <IDSymbol name="cmdidScriptDataCommand" value="0x0200" />
     </GuidSymbol>

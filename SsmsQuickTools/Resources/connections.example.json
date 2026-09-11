@@ -1,9 +1,6 @@
 {
-  "servers": [
-    {
-      "name": "LENOVOJOSE\\DEV01",
-      "server": "LENOVOJOSE\\DEV01",
-      "databases": [ "Figuritas", "ClinicaTurnos" ]
-    }
+  "connections": [
+    { "name": "LENOVOJOSE\\DEV01.Figuritas", "server": "LENOVOJOSE\\DEV01", "database": "Figuritas" },
+    { "name": "LENOVOJOSE\\DEV01.ClinicaTurnos", "server": "LENOVOJOSE\\DEV01", "database": "ClinicaTurnos" }
   ]
 }

@@ -80,7 +80,7 @@ plugin-ssms/
     Features/
       QuickConnect/
         ConnectionCatalog.cs        // carga/watch del archivo de configuración
-        QuickConnectCommands.cs     // handlers de los dos combos
+        QuickConnectCommands.cs     // handler del combo unico "Quick Connections"
       ScriptData/
         ValuesScriptBuilder.cs      // inferencia de tipos + generación del CTE
         ScriptDataCommand.cs
@@ -101,34 +101,31 @@ plugin-ssms/
 
 ## Milestone 1 — Quick Connections
 
-Archivo de configuración en `%APPDATA%\SsmsQuickTools\connections.json`, recargado con `FileSystemWatcher`:
+Archivo de configuración en `%APPDATA%\SsmsQuickTools\connections.json`, recargado con `FileSystemWatcher`.
+Lista plana de conexiones con nombre (un registro = un par servidor+base):
 
 ```json
 {
-  "servers": [
-    {
-      "name": "PROD",
-      "server": "sql-prod01\\INST1",
-      "databases": ["Ventas", "Facturacion"]
-    },
-    { "name": "DEV", "server": "localhost", "databases": ["VentasDev"] }
+  "connections": [
+    { "name": "PROD.Ventas", "server": "sql-prod01\\INST1", "database": "Ventas" },
+    { "name": "PROD.Facturacion", "server": "sql-prod01\\INST1", "database": "Facturacion" },
+    { "name": "DEV.VentasDev", "server": "localhost", "database": "VentasDev" }
   ]
 }
 ```
 
 Solo autenticación integrada; no se almacenan credenciales.
 
-En el `.vsct`, dos combos en una toolbar propia:
+En el `.vsct`, un combo único ("Quick Connections") en una toolbar propia:
 
 ```xml
-<Combo guid="guidSsmsQuickTools" id="cmdidServerCombo" priority="0x0100"
-       type="DropDownCombo" idCommandList="cmdidServerComboGetList"
-       defaultWidth="180">
+<Combo guid="guidQuickToolsCmdSet" id="cmdidConnectionCombo" priority="0x0001"
+       type="DropDownCombo" idCommandList="cmdidConnectionComboGetList"
+       defaultWidth="220">
 ```
 
 - Un handler responde con la lista (`OleMenuCmdEventArgs.OutValue` = `string[]`) y otro con la selección.
-- El combo de bases se repuebla al cambiar el de servidores (no reconecta nada por sí solo).
-- Al seleccionar base: `SsmsHost.TryReconnectActiveWindow` reconecta **in-place** la ventana de query
+- Al seleccionar una conexión: `SsmsHost.TryReconnectActiveWindow` reconecta **in-place** la ventana de query
   activa, sin abrir una ventana nueva salvo que no haya ninguna. Verificado por IL
   (`ildasm` sobre `lib/ssms22.6/SQLEditors.dll`, SSMS 22.6.11806.211) contra
   `ScriptAndResultsEditorControl`/`SqlScriptEditorControl`:
@@ -212,7 +209,7 @@ Comando expuesto en el menú contextual del grid de resultados y en **Tools**, c
 Todo se verifica contra SSMS real; no hay pruebas automatizadas de la capa de UI. Verificar como mínimo en **22.6.0** (piso soportado) y en la versión más reciente disponible, ya que el `GridReader` por reflection es lo que más probablemente difiera entre ambas.
 
 - **M0**: la extensión aparece en Extensions → Manage Extensions y el comando de prueba responde.
-- **M1**: editar `connections.json` con dos servidores; los combos se pueblan; seleccionar una base cambia la conexión de la ventana activa (verificar con `SELECT @@SERVERNAME, DB_NAME()`).
+- **M1**: editar `connections.json` con varias conexiones (incluyendo dos del mismo servidor); el combo se puebla; seleccionar una conexión cambia la conexión de la ventana activa (verificar con `SELECT @@SERVERNAME, DB_NAME()`).
 - **M2**: ejecutar una consulta con columnas de tipos mixtos (int, nvarchar con comilla simple, datetime, NULL, decimal, uniqueidentifier, bit); usar el comando; pegar el resultado en una ventana nueva y confirmar que ejecuta y devuelve las mismas filas. Repetir con selección parcial de celdas y con más de 1000 filas.
   **Hecho** (2026-09-09, contra `LENOVOJOSE\DEV01`/`Figuritas`): checklist manual completo (comando por Tools y por Ctrl+Shift+D, selección parcial de filas, dos result sets, >1000 filas con confirmación, casos de error). Los TSV capturados quedaron como fixtures reales en `SsmsQuickTools.Tests/Fixtures/` (`tipos_mixtos.tsv`, `tipos_mixtos_seleccion_parcial.tsv`, `volumen_1500filas.tsv`) y se ejecutan automáticamente en `ScriptRoundTripTests.cs` cuando `SSMSQT_TEST_CONNECTION` está definida (esas capturas se hicieron sin encabezado a propósito, así que se les agregó a mano el header conocido de cada consulta antes de usarlas como fixture). Pendiente todavía: el fallback de `ClipboardTsvReader` con "Include column headers when copying or saving results" desactivado en Tools → Options — sin encabezado real, toma la primera fila de datos como encabezado y la pierde en silencio; ese caso concreto (deliberado, "qué pasa si me olvido la opción") no se ejercitó todavía en la UI. Tampoco se confirmó selección parcial de *columnas* (la captura recibida trajo filas completas), solo de filas.
 - **M3**: probar sobre una tabla, una vista, un procedimiento y una función; con nombre completo y con nombre simple; y con un objeto inexistente (debe avisar sin excepción).

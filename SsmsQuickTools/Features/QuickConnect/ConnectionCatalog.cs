@@ -7,22 +7,22 @@ using System.Text;
 
 namespace SsmsQuickTools.Features.QuickConnect
 {
-    public sealed class ServerEntry
+    public sealed class ConnectionEntry
     {
         public string Name { get; set; }
         public string Server { get; set; }
-        public List<string> Databases { get; set; } = new List<string>();
+        public string Database { get; set; }
     }
 
     [System.Runtime.Serialization.DataContract]
     internal sealed class ConnectionsFile
     {
-        [System.Runtime.Serialization.DataMember(Name = "servers")]
-        public List<ServerEntryDto> Servers { get; set; } = new List<ServerEntryDto>();
+        [System.Runtime.Serialization.DataMember(Name = "connections")]
+        public List<ConnectionEntryDto> Connections { get; set; } = new List<ConnectionEntryDto>();
     }
 
     [System.Runtime.Serialization.DataContract]
-    internal sealed class ServerEntryDto
+    internal sealed class ConnectionEntryDto
     {
         [System.Runtime.Serialization.DataMember(Name = "name")]
         public string Name { get; set; }
@@ -30,8 +30,8 @@ namespace SsmsQuickTools.Features.QuickConnect
         [System.Runtime.Serialization.DataMember(Name = "server")]
         public string Server { get; set; }
 
-        [System.Runtime.Serialization.DataMember(Name = "databases")]
-        public List<string> Databases { get; set; }
+        [System.Runtime.Serialization.DataMember(Name = "database")]
+        public string Database { get; set; }
     }
 
     /// <summary>
@@ -44,7 +44,7 @@ namespace SsmsQuickTools.Features.QuickConnect
         private readonly string _configPath;
         private readonly FileSystemWatcher _watcher;
         private readonly object _lock = new object();
-        private List<ServerEntry> _servers = new List<ServerEntry>();
+        private List<ConnectionEntry> _connections = new List<ConnectionEntry>();
 
         public event EventHandler Changed;
 
@@ -72,21 +72,21 @@ namespace SsmsQuickTools.Features.QuickConnect
 
         public string ConfigPath => _configPath;
 
-        public IReadOnlyList<ServerEntry> Servers
+        public IReadOnlyList<ConnectionEntry> Connections
         {
-            get { lock (_lock) { return _servers; } }
+            get { lock (_lock) { return _connections; } }
         }
 
-        public ServerEntry FindServer(string name)
+        public ConnectionEntry FindConnection(string name)
         {
-            return Servers.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
+            return Connections.FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
         }
 
         public void Reload()
         {
             try
             {
-                List<ServerEntry> parsed;
+                List<ConnectionEntry> parsed;
                 using (var stream = new FileStream(_configPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 using (var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
                 using (var noBomStream = new MemoryStream(Encoding.UTF8.GetBytes(reader.ReadToEnd())))
@@ -95,20 +95,22 @@ namespace SsmsQuickTools.Features.QuickConnect
                     // (falla en silencio en ReadObject); se relee como texto y se recodifica sin BOM.
                     var serializer = new DataContractJsonSerializer(typeof(ConnectionsFile));
                     var file = (ConnectionsFile)serializer.ReadObject(noBomStream) ?? new ConnectionsFile();
-                    parsed = file.Servers
-                        .Where(s => !string.IsNullOrWhiteSpace(s.Name) && !string.IsNullOrWhiteSpace(s.Server))
-                        .Select(s => new ServerEntry
+                    parsed = file.Connections
+                        .Where(c => !string.IsNullOrWhiteSpace(c.Name)
+                            && !string.IsNullOrWhiteSpace(c.Server)
+                            && !string.IsNullOrWhiteSpace(c.Database))
+                        .Select(c => new ConnectionEntry
                         {
-                            Name = s.Name,
-                            Server = s.Server,
-                            Databases = s.Databases ?? new List<string>(),
+                            Name = c.Name,
+                            Server = c.Server,
+                            Database = c.Database,
                         })
                         .ToList();
                 }
 
                 lock (_lock)
                 {
-                    _servers = parsed;
+                    _connections = parsed;
                 }
 
                 Changed?.Invoke(this, EventArgs.Empty);
@@ -127,8 +129,8 @@ namespace SsmsQuickTools.Features.QuickConnect
         private static void WriteExampleFile(string path)
         {
             const string example = @"{
-  ""servers"": [
-    { ""name"": ""LOCAL"", ""server"": ""localhost"", ""databases"": [ ""master"" ] }
+  ""connections"": [
+    { ""name"": ""LOCAL.master"", ""server"": ""localhost"", ""database"": ""master"" }
   ]
 }";
             File.WriteAllText(path, example, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
