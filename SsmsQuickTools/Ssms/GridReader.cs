@@ -76,15 +76,15 @@ namespace SsmsQuickTools.Ssms
                     return null;
                 }
 
-                var data = TsvParser.Parse(text);
-                if (data.Columns.Count == 0 || data.Rows.Count == 0)
+                var parsed = TsvParser.Parse(text);
+                if (parsed.Columns.Count == 0 || parsed.Rows.Count == 0)
                 {
                     failureReason = "El grid no tiene filas para exportar.";
                     return null;
                 }
 
                 failureReason = null;
-                return data;
+                return new ResultSetData(parsed.Columns, parsed.Rows, hasSelection);
             }
             catch (Exception ex)
             {

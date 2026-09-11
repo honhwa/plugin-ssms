@@ -32,6 +32,12 @@ namespace SsmsQuickTools
         // Comando "Script de datos del grid" (Tools + menu contextual del grid)
         public const uint ScriptDataCommand = 0x0200;
 
+        // Menu contextual del grid de resultados (IDM_SQLWB_SQLRESGRID_CONTEXT, SQLEditors.dll)
+        public const uint ResultsGridContextGroup = 0x1003;
+
+        // Comando "Copiar seleccion como XML Spreadsheet" (Tools + menu contextual del grid)
+        public const uint CopyXmlSpreadsheetCommand = 0x0201;
+
         // Menu contextual del editor: Generar CREATE / Generar ALTER
         public const uint EditorContextGroup = 0x2001;
         public const uint GenerateCreateCommand = 0x0300;

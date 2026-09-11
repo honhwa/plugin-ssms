@@ -74,6 +74,23 @@
           <ButtonText>Quick Connections</ButtonText>
         </Strings>
       </Button>
+
+      <!-- Copiar seleccion del grid como XML Spreadsheet (Milestone 4, docs/PLAN.md). Se
+           intento tambien fusionar en el menu contextual del grid de resultados
+           (IDM_SQLWB_SQLRESGRID_CONTEXT, GUID_SQLEditorCommandSet); descartado tras
+           verificacion empirica (2026-09-10) contra SSMS 22.6, mismo resultado que M3 con el
+           editor: SSMS no fusiona grupos de terceros en ese menu tampoco. Queda en Tools +
+           atajo, igual que ScriptData y Generar CREATE/ALTER. -->
+      <Button guid="guidQuickToolsCmdSet" id="cmdidCopyXmlSpreadsheetCommand" priority="0x0120" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="ToolsMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="Copy" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Copiar selección como XML Spreadsheet</ButtonText>
+          <MenuText>Copiar selección como XML Spreadsheet</MenuText>
+          <ToolTipText>Copia la selección del grid de resultados al portapapeles en formato XML Spreadsheet (Excel), preservando tipo y precisión</ToolTipText>
+        </Strings>
+      </Button>
     </Buttons>
 
     <Combos>
@@ -95,6 +112,7 @@
     <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidScriptDataCommand" editor="guidVSStd97" key1="D" mod1="Control Shift" />
     <KeyBinding guid="guidEditorContextCmdSet" id="cmdidGenerateCreateCommand" editor="guidVSStd97" key1="C" mod1="Control Shift" />
     <KeyBinding guid="guidEditorContextCmdSet" id="cmdidGenerateAlterCommand" editor="guidVSStd97" key1="A" mod1="Control Shift" />
+    <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidCopyXmlSpreadsheetCommand" editor="guidVSStd97" key1="X" mod1="Control Shift" />
   </KeyBindings>
 
   <Symbols>
@@ -109,6 +127,7 @@
       <IDSymbol name="cmdidConnectionComboGetList" value="0x0101" />
 
       <IDSymbol name="cmdidScriptDataCommand" value="0x0200" />
+      <IDSymbol name="cmdidCopyXmlSpreadsheetCommand" value="0x0201" />
     </GuidSymbol>
 
     <GuidSymbol name="guidEditorContextCmdSet" value="{d71b3e2f-929e-4f15-9652-e299c6a4b288}">
