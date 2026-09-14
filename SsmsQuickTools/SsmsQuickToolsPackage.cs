@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
+using SsmsQuickTools.Features.CopyXmlSpreadsheet;
 using SsmsQuickTools.Features.QuickConnect;
 using SsmsQuickTools.Features.ScriptData;
 using SsmsQuickTools.Features.ScriptObject;
@@ -38,6 +39,7 @@ namespace SsmsQuickTools
             new QuickConnectCommands(this, commandService, catalog).Register();
             new ScriptDataCommand(this, commandService).Register();
             new ScriptObjectCommands(this, commandService).Register();
+            new CopyXmlSpreadsheetCommand(this, commandService).Register();
         }
     }
 }

@@ -11,10 +11,19 @@ namespace SsmsQuickTools.Ssms
         public IReadOnlyList<string> Columns { get; }
         public IReadOnlyList<string[]> Rows { get; }
 
-        public ResultSetData(IReadOnlyList<string> columns, IReadOnlyList<string[]> rows)
+        /// <summary>
+        /// true si estos datos vienen de una seleccion explicita de celdas en el grid (en vez
+        /// del grid completo). <see cref="ClipboardTsvReader"/> nunca puede saberlo con
+        /// certeza y siempre reporta false. Usado por comandos que requieren seleccion
+        /// explicita, como "Copiar seleccion como XML Spreadsheet".
+        /// </summary>
+        public bool HasSelection { get; }
+
+        public ResultSetData(IReadOnlyList<string> columns, IReadOnlyList<string[]> rows, bool hasSelection = false)
         {
             Columns = columns;
             Rows = rows;
+            HasSelection = hasSelection;
         }
     }
 

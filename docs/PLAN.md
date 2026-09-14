@@ -204,6 +204,210 @@ Comando expuesto en el menú contextual del grid de resultados y en **Tools**, c
    - `IVsMonitorSelection` / `OleMenuCommand.BeforeQueryStatus` decide visibilidad y habilitación según lo que exista en el servidor (una consulta a `sys.objects` para resolver el tipo).
 5. Resultado: nueva ventana de query con el script (`ScriptFactory.CreateNewBlankScript` + inserción de texto), y copia al portapapeles.
 
+## Milestone 4 — Copy selection as XML Spreadsheet
+
+**Estado: funcionando (2026-09-11, v0.1.10, confirmado contra SSMS 22.6 real).** Al pegar en Excel los
+campos llegan formateados (encabezado en negrita, tipos preservados). Historial de los tres intentos de
+escritura al portapapeles hasta llegar a esto:
+
+1. **v0.1.7** — `System.Windows.Forms.DataObject.SetData("XML Spreadsheet", new MemoryStream(...))` +
+   `Clipboard.SetDataObject`. Excel pegaba texto plano. Causa: el `DataObject` de WinForms expone un
+   `Stream` via `TYMED_ISTREAM`, Excel pide `TYMED_HGLOBAL` — no matchea, Excel descarta el formato.
+2. **v0.1.9** — reescrito con la API cruda de Win32 (`RegisterClipboardFormat` +
+   `OpenClipboard`/`EmptyClipboard`/`GlobalAlloc`/`SetClipboardData`, portapapeles "global"). Sin excepción
+   al ejecutar, pero **verificado con un inspector de portapapeles (2026-09-11) que el formato "XML
+   Spreadsheet" ni siquiera queda escrito** — el inspector solo ve el `CF_UNICODETEXT` de fallback. El
+   `SetClipboardData` del XML no devolvía error (si hubiera fallado, el código no habría llegado a escribir
+   el texto: ver orden en el código de esa versión), así que el dato técnicamente entra a la tabla global
+   de formatos, pero ni Excel ni el inspector lo ven — ambos consultan por el lado OLE
+   (`OleGetClipboard`/`IDataObject`), no por `GetClipboardData` crudo.
+3. **v0.1.10 — funciona.** Se reemplazó todo por un `IDataObject` COM propio (`ClipboardDataObject.cs`),
+   publicado con `OleSetClipboard` + `OleFlushClipboard`. Dos formatos (`"XML Spreadsheet"` registrado y
+   `CF_UNICODETEXT`), ambos ofrecidos explícitamente con `TYMED_HGLOBAL` vía
+   `GetData`/`QueryGetData`/`EnumFormatEtc`. Confirmado: pegado en Excel con encabezado en negrita y tipos
+   preservados. Era el mecanismo correcto — control total sobre qué TYMED se negocia, publicado por el
+   canal OLE que Excel realmente consulta.
+
+Pendiente todavía (no bloqueante, ver checklist en `## Verificación`): el resto del checklist de M4 —
+tipos mixtos completos (bigint grande, decimal de alta precisión, ceros a la izquierda, fechas, NULL,
+caracteres especiales), selección parcial de columnas, y confirmar el fallback TSV en Notepad.
+
+Copiar con Ctrl+C / Ctrl+Shift+C desde el grid de resultados pega en Excel una representación de texto
+(TSV): Excel tiene que adivinar el tipo de cada celda según la configuración regional del equipo. Daño
+típico: `00123` pierde los ceros, `2026-03-04` se lee como 4 de marzo o 3 de abril según el locale,
+`12.50` se confunde con fecha o entero, y los identificadores largos pierden dígitos de precisión.
+
+Nuevo comando que copia la selección actual del grid al portapapeles en formato **XML Spreadsheet 2003**
+(SpreadsheetML), que Excel pega de forma nativa con tipo explícito por celda: encabezados en negrita,
+strings como strings, fechas como fechas, y numéricos/monetarios con su precisión y escala.
+
+**Lectura del grid.** Reutiliza `GridReader` (`Ssms/GridReader.cs`), con **selección obligatoria**:
+`GridReader.cs:68-79` ya calcula `hasSelection` desde `grid.SelectedCells` y llama
+`grid.GetDataObject(hasSelection, true)`, pero `ResultSetData` (`Ssms/IResultSetReader.cs:9-19`) no expone
+ese dato hacia afuera. Se agrega `bool HasSelection` a `ResultSetData` (`GridReader` lo setea,
+`ClipboardTsvReader` siempre `false`) para que el comando rechace sin selección. `GetDataObject(true,
+true)` ya restringe a las columnas seleccionadas y devuelve sus encabezados, así que la selección parcial
+de columnas funciona gratis. Sin fallback a `ClipboardTsvReader` en este comando: ese lector no puede
+probar que hubo selección, y sin la opción "incluir encabezados" de SSMS pierde en silencio la primera
+fila de datos.
+
+**Invocación — tres caminos, en este orden de esfuerzo:**
+
+1. **Menú contextual del grid de resultados (plan A, probar primero).** A diferencia del menú contextual
+   del *editor* (descartado en M3), el popup del grid de resultados sí es un menú VSCT: por reflection
+   sobre `lib/ssms22.6/SQLEditors.dll`, `SQLWorkbenchCommands.IDM_SQLWB_SQLRESGRID_CONTEXT = 112`
+   (`0x0070`) vive en `GUID_SQLEditorCommandSet = {52692960-56bc-4989-b5d3-94c47a513e8d}`, y los metadatos
+   del ensamblado sí referencian `IVsUIShell.ShowContextMenu`. Declarar ese guid/id como símbolos externos
+   en `SsmsQuickTools.vsct` y parentar un grupo nuevo:
+   ```xml
+   <Group guid="guidQuickToolsCmdSet" id="ResultsGridContextGroup" priority="0x0600">
+     <Parent guid="guidSqlEditorCmdSet" id="IDM_SQLWB_SQLRESGRID_CONTEXT" />
+   </Group>
+   ...
+   <GuidSymbol name="guidSqlEditorCmdSet" value="{52692960-56bc-4989-b5d3-94c47a513e8d}">
+     <IDSymbol name="IDM_SQLWB_SQLRESGRID_CONTEXT" value="0x0070" />
+   </GuidSymbol>
+   ```
+   El botón se declara dos veces (bajo `ToolsMenuGroup` y bajo `ResultsGridContextGroup`) con mismo
+   `guid`/`id`, así ambas entradas disparan el mismo `OleMenuCommand`. Con `DynamicVisibility` +
+   `BeforeQueryStatus` (patrón en `ScriptObjectCommands.cs:32-63`) para ocultar el ítem si no hay grid con
+   selección. **Verificación empírica obligatoria antes de dar por buena esta vía** (mismo tipo de prueba
+   que M3): instalar el VSIX, click derecho sobre el grid de resultados, confirmar que el ítem aparece; y
+   revisar Herramientas → Personalizar → Comandos → Menú contextual. Si no aparece, esta vía está muerta —
+   M3 ya demostró que SSMS ignora grupos de terceros en `GUID_SQLEditorCommandSet` para el menú del editor
+   de script (id 80), así que no vale la pena intentar variantes.
+
+   **Descartado tras verificación empírica (2026-09-10) contra SSMS 22.6.**  Se implementó (el `<Button>`
+   se declara una sola vez con parent `ToolsMenuGroup`, ubicado también en `ResultsGridContextGroup` vía
+   `<CommandPlacement>` — declarar el mismo `guid`/`id` dos veces como `<Button>` no compila, VSCT lo
+   rechaza como definición duplicada), se instaló el VSIX (v0.1.7) y se probó con click derecho sobre el
+   grid de resultados: **el ítem no aparece**. Mismo resultado que M3 con el menú del editor: SSMS arma el
+   popup del grid de resultados a mano y tampoco fusiona grupos de terceros en `GUID_SQLEditorCommandSet`,
+   pese a que los metadatos del ensamblado sí referencian `IVsUIShell.ShowContextMenu`. Se revirtió el
+   grupo/placement/símbolos del intento (código muerto sin utilidad) y se descartó también el plan B por
+   el mismo motivo que originalmente lo hacía condicional: sin plan A, no vale el riesgo de enganchar
+   `ContextMenuStrip` en runtime para ganar un click derecho que Tools + `Ctrl+Shift+X` ya cubre
+   (confirmado funcionando). El comando queda solo por esas dos vías, como en M2/M3.
+2. **`ContextMenuStrip` en tiempo de ejecución (plan B, evaluado y descartado sin implementar).**
+   **Decisión (2026-09-10)**: con plan A confirmado muerto, se optó por no intentar plan B — el riesgo
+   (posible doble popup o `ContextMenuStrip` que nunca dispara, por `WM_CONTEXTMENU` manejado a mano por
+   SSMS) no se justifica para ganar un click derecho que Tools + atajo ya cubre y que el usuario confirmó
+   funcionando. Queda documentado por si en una versión futura de SSMS cambia el comportamiento de plan A
+   y vale la pena revisar esto de nuevo. `ContextMenuStrip` aparece
+   **cero** veces en los metadatos de `SQLEditors.dll`: SSMS nunca asigna esa propiedad en sus grids, así
+   que queda libre. `GridResultsGrid` hereda de `Microsoft.SqlServer.Management.UI.Grid.GridControl`
+   (`Control` de WinForms común), que expone públicos `MouseButtonClicking` / `MouseButtonClicked`
+   (`MouseButtonClickedEventArgs.Button`, `.RowIndex`, `.ColumnIndex`). Habría que engancharse en
+   activación de ventana (no en el click, no hay forma de descubrir el grid recién ahí): implementar
+   `IVsSelectionEvents.OnElementValueChanged` para `SEID_WindowFrame`, reutilizar el recorrido
+   `FindGridControl` de `GridReader.cs:126-156` sobre el `DocView` del frame nuevo, y asignar el
+   `ContextMenuStrip` una vez por instancia (idempotente, trackeando en `ConditionalWeakTable` para no
+   perder referencia a ventanas cerradas). Riesgo a verificar: SSMS maneja `WM_CONTEXTMENU` a mano para
+   mostrar su propio popup, así que el `ContextMenuStrip` de WinForms puede no dispararse nunca, o
+   dispararse *además* del menú de SSMS (dos popups). Cualquiera de los dos casos descarta también el
+   plan B.
+3. **Menú Tools + atajo de teclado (plan C, se entrega siempre).** Igual patrón que M2/M3: `Ctrl+Shift+X`
+   (libre; ocupados: `D`, `C`, `A`), bajo `ToolsMenuGroup`. No es condicional a que A o B funcionen — se
+   entrega siempre, así la funcionalidad nunca queda bloqueada por el menú contextual. El resultado de A y
+   B (funcionó / no funcionó, y por qué) se documenta acá con fecha y build de SSMS, igual que el
+   `~~tachado~~` + "Descartado tras verificación empírica" de M3.
+
+**Inferencia de tipos.** Reutiliza `ValuesScriptBuilder.InferColumnTypes(columnCount, rows)`, ya `public
+static` (`Features/ScriptData/ValuesScriptBuilder.cs:112`), mapeado a los tres tipos de SpreadsheetML:
+
+| `InferredSqlType` | `ss:Type` |
+|---|---|
+| `Bit`, `Int`, `BigInt`, `Decimal` | `Number` (sujeto a la regla de exactitud de abajo) |
+| `DateTime2` | `DateTime` (sujeto a la regla de precisión de abajo) |
+| `UniqueIdentifier`, `NVarChar` | `String` |
+
+`Bit` mapea a `Number`, no a `Boolean`: una columna `0`/`1` en el grid es mucho más frecuentemente un
+`int` que un `bit` real, y un `Boolean` equivocado renderiza `TRUE`/`FALSE` en Excel.
+
+**Reglas de exactitud (el núcleo de este milestone).** Un número de Excel es un double IEEE-754: ~15
+dígitos decimales significativos. Una celda se emite como `Number` **solo si el valor hace round-trip sin
+pérdida**; si no, cae a `String`, conservando el texto exacto al costo de no ser aritmética en Excel.
+
+- **Enteros**: `Number` si `|v| <= 2^53 - 1` (9007199254740991). `bigint` más grande → `String`.
+- **Decimales**: `Number` si el valor tiene 15 o menos dígitos significativos. Más que eso → `String`
+  (un `decimal(38,10)` típico cae acá).
+- **Separador de miles**: `InferCellType` usa `NumberStyles.Number`, que acepta `1,234.50` — trampa ya
+  documentada por `ValuesScriptBuilderTests.cs:110`. Revalidar cada celda numérica con `NumberStyles.Float
+  | NumberStyles.AllowLeadingSign` (sin separador de miles) antes de emitir `Number`; si falla → `String`.
+- **`NULL`**: semántica de `IsNullText` (`ValuesScriptBuilder.cs:194`) — emitir `<Cell/>` vacío, no el
+  texto `NULL`. Limitación heredada de M2: un string real `"NULL"` es indistinguible.
+- **Ceros a la izquierda**: un valor con apariencia numérica y cero a la izquierda (`00123`, número de
+  cuenta o documento) → `String`, para que Excel no los recorte.
+
+**Reglas de fecha/hora.** `DateTime` de SpreadsheetML es `yyyy-MM-ddTHH:mm:ss[.fff]`, hasta 3 dígitos de
+fracción de segundo. `datetime2(7)` en el grid trae 7 (`2026-03-04 10:20:30.1234567`).
+
+- 3 o menos dígitos de fracción → `DateTime`, formateado con `CultureInfo.InvariantCulture`.
+- Más de 3 → `String` con el texto original exacto (la precisión se truncaría en silencio).
+- Valores solo-hora (`time(7)`) → `String`; no hay equivalente limpio en SpreadsheetML.
+- Fechas anteriores a 1900-01-01 → `String`: el sistema de fecha serial de Excel no las representa.
+
+**Estilos.** Un bloque `<Styles>`, un estilo por rol, para que la selección pegada se vea como tabla:
+
+- `sHeader` — `<Font ss:Bold="1"/>` para la fila de encabezado.
+- `sDateTime` — `<NumberFormat ss:Format="yyyy\-mm\-dd hh:mm:ss"/>` (columnas solo-fecha:
+  `yyyy\-mm\-dd`).
+- `sDecimalN` — un estilo por escala distinta encontrada en una columna decimal, `ss:Format="0.000…"`
+  construido con la cantidad máxima de decimales vista en esa columna. Esto preserva la escala *visible*
+  (`12.50` queda `12.50`, no `12.5`).
+- Columnas enteras y de texto usan el estilo por defecto.
+
+El estilo de columna se aplica a nivel `<Column ss:StyleID="…"/>`, así toda la columna lo hereda.
+
+**Forma del documento:**
+
+```xml
+<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+          xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="sHeader"><Font ss:Bold="1"/></Style>
+    <Style ss:ID="sDateTime"><NumberFormat ss:Format="yyyy\-mm\-dd hh:mm:ss"/></Style>
+  </Styles>
+  <Worksheet ss:Name="Results">
+    <Table>
+      <Row ss:StyleID="sHeader">
+        <Cell><Data ss:Type="String">Id</Data></Cell>
+        <Cell><Data ss:Type="String">Importe</Data></Cell>
+      </Row>
+      <Row>
+        <Cell><Data ss:Type="Number">1</Data></Cell>
+        <Cell><Data ss:Type="Number">12.50</Data></Cell>
+      </Row>
+    </Table>
+  </Worksheet>
+</Workbook>
+```
+
+Escapado XML: `&`, `<`, `>` en cada valor y en cada nombre de columna; se eliminan caracteres ilegales en
+XML 1.0 (caracteres de control salvo tab/CR/LF). Nombre de hoja limitado a 31 caracteres y sin
+`: \ / ? * [ ]`.
+
+**Escritura al portapapeles.** A diferencia de `ScriptDataCommand.cs:71` (`Clipboard.SetText`), Excel solo
+reconoce el formato de portapapeles registrado como **`"XML Spreadsheet"`**, con los bytes UTF-8 del XML.
+Historial de los tres intentos (v0.1.7, v0.1.9, v0.1.10) en la nota de estado al inicio de este milestone.
+
+Implementación actual (v0.1.10, `Features/CopyXmlSpreadsheet/ClipboardDataObject.cs`): `IDataObject` COM
+propio (`System.Runtime.InteropServices.ComTypes.IDataObject`, no el de WinForms), publicado con
+`OleSetClipboard` + `OleFlushClipboard`. Dos entradas (`RegisterClipboardFormat("XML Spreadsheet")` y
+`CF_UNICODETEXT` como fallback), ambas ofrecidas con `TYMED_HGLOBAL` en `GetData`/`QueryGetData`/
+`EnumFormatEtc` — cada `GetData` hace su propio `GlobalAlloc`/`GlobalLock`/`Marshal.Copy`/`GlobalUnlock`
+bajo pedido del consumidor (Excel llama `GetData` cuando el usuario pega, no antes). Con `try/catch` y el
+mismo tratamiento de `MessageBox` que `ScriptDataCommand.cs:69-77`.
+
+**Volumen.** Reutiliza la confirmación Sí/No de `RowLimitWithoutConfirmation = 1000`
+(`ScriptDataCommand.cs:16,45-56`). No hay límite duro tipo `VALUES` acá, así que sin particionado: un solo
+`<Table>` con todas las filas seleccionadas.
+
+Comando expuesto en **Tools** y con atajo de teclado (`Ctrl+Shift+X`); el menú contextual del grid de
+resultados se descartó (ver "Invocación" más arriba).
+
 ## Verificación
 
 Todo se verifica contra SSMS real; no hay pruebas automatizadas de la capa de UI. Verificar como mínimo en **22.6.0** (piso soportado) y en la versión más reciente disponible, ya que el `GridReader` por reflection es lo que más probablemente difiera entre ambas.
@@ -213,8 +417,15 @@ Todo se verifica contra SSMS real; no hay pruebas automatizadas de la capa de UI
 - **M2**: ejecutar una consulta con columnas de tipos mixtos (int, nvarchar con comilla simple, datetime, NULL, decimal, uniqueidentifier, bit); usar el comando; pegar el resultado en una ventana nueva y confirmar que ejecuta y devuelve las mismas filas. Repetir con selección parcial de celdas y con más de 1000 filas.
   **Hecho** (2026-09-09, contra `LENOVOJOSE\DEV01`/`Figuritas`): checklist manual completo (comando por Tools y por Ctrl+Shift+D, selección parcial de filas, dos result sets, >1000 filas con confirmación, casos de error). Los TSV capturados quedaron como fixtures reales en `SsmsQuickTools.Tests/Fixtures/` (`tipos_mixtos.tsv`, `tipos_mixtos_seleccion_parcial.tsv`, `volumen_1500filas.tsv`) y se ejecutan automáticamente en `ScriptRoundTripTests.cs` cuando `SSMSQT_TEST_CONNECTION` está definida (esas capturas se hicieron sin encabezado a propósito, así que se les agregó a mano el header conocido de cada consulta antes de usarlas como fixture). Pendiente todavía: el fallback de `ClipboardTsvReader` con "Include column headers when copying or saving results" desactivado en Tools → Options — sin encabezado real, toma la primera fila de datos como encabezado y la pierde en silencio; ese caso concreto (deliberado, "qué pasa si me olvido la opción") no se ejercitó todavía en la UI. Tampoco se confirmó selección parcial de *columnas* (la captura recibida trajo filas completas), solo de filas.
 - **M3**: probar sobre una tabla, una vista, un procedimiento y una función; con nombre completo y con nombre simple; y con un objeto inexistente (debe avisar sin excepción).
+- **M4**: **Hecho, parcial** (2026-09-11, contra SSMS 22.6, v0.1.10): el comando aparece y ejecuta desde
+  Tools y desde `Ctrl+Shift+X` sin errores; pegado en Excel confirmado con encabezado en negrita y tipos
+  preservados (bloqueante resuelto, ver nota de estado al inicio del milestone). El menú contextual del
+  grid de resultados no lo expone (descartado, ver "Invocación"). Pendiente todavía: ejecutar el
+  checklist completo de tipos mixtos (`bigint` mayor a 2^53, `decimal(38,10)`, `money`, `nvarchar`
+  numérico con ceros a la izquierda, `datetime2(7)`, `date`, `time`, `bit`, `NULL`, `uniqueidentifier`,
+  string con `<`, `&` y un tab), selección parcial de columnas, y confirmar el fallback TSV en Notepad.
 - Prueba de regresión de riesgo: reiniciar SSMS varias veces y confirmar que no se degrada el arranque ni aparecen errores en `%AppData%\Microsoft\SSMS\ActivityLog.xml` (arrancar con `Ssms.exe /log` para generarlo).
 
 ## Unit tests
 
-`ValuesScriptBuilder` y `ObjectNameParser` son lógica pura sin dependencias de SSMS: proyecto de tests separado con xUnit cubriendo inferencia de tipos, escapado, particionado en bloques de 1000 y parseo de nombres.
+`ValuesScriptBuilder`, `ObjectNameParser` y `XmlSpreadsheetBuilder` (Milestone 4) son lógica pura sin dependencias de SSMS: proyecto de tests separado con xUnit cubriendo inferencia de tipos, escapado, particionado en bloques de 1000, parseo de nombres, y las reglas de exactitud/precisión de `XmlSpreadsheetBuilder` (redondeo a `String` cuando el valor no hace round-trip, formato de fecha/hora, escapado XML).
