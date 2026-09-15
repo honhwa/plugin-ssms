@@ -14,7 +14,10 @@ Three features:
    a named server/database pair from a local `connections.json`.
 2. **Grid → Script** — copies the active result grid as a self-contained `SELECT` script (CTE + `VALUES`) to
    the clipboard.
-3. **Generar CREATE / Generar ALTER** — editor context-menu commands that script the object under selection.
+3. **Generar CREATE / Generar ALTER** — commands, exposed in the **Quick Tools** menu (SSMS main menu
+   bar), that script the object under selection. SSMS's editor and result-grid context menus don't merge
+   third-party VSCT groups, so all commands live in the Quick Tools menu instead — see `docs/PLAN.md`
+   Milestone 5.
 
 ## Build
 

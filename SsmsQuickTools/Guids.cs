@@ -26,20 +26,20 @@ namespace SsmsQuickTools
         public const uint QuickConnectToolbar = 0x1000;
         public const uint QuickConnectToolbarGroup = 0x1001;
 
+        // Menu top-level "Quick Tools" en la barra principal: destino canonico de comandos.
+        public const uint QuickToolsMenu = 0x1100;
+        public const uint QuickToolsMenuGroup = 0x1101;
+
         public const uint ConnectionCombo = 0x0100;
         public const uint ConnectionComboGetList = 0x0101;
 
-        // Comando "Script de datos del grid" (Tools + menu contextual del grid)
+        // Comando "Script de datos del grid" (menu Quick Tools)
         public const uint ScriptDataCommand = 0x0200;
 
-        // Menu contextual del grid de resultados (IDM_SQLWB_SQLRESGRID_CONTEXT, SQLEditors.dll)
-        public const uint ResultsGridContextGroup = 0x1003;
-
-        // Comando "Copiar seleccion como XML Spreadsheet" (Tools + menu contextual del grid)
+        // Comando "Copiar seleccion como XML Spreadsheet" (menu Quick Tools)
         public const uint CopyXmlSpreadsheetCommand = 0x0201;
 
-        // Menu contextual del editor: Generar CREATE / Generar ALTER
-        public const uint EditorContextGroup = 0x2001;
+        // Comandos "Generar CREATE" / "Generar ALTER" (menu Quick Tools)
         public const uint GenerateCreateCommand = 0x0300;
         public const uint GenerateAlterCommand = 0x0301;
     }

@@ -408,6 +408,31 @@ mismo tratamiento de `MessageBox` que `ScriptDataCommand.cs:69-77`.
 Comando expuesto en **Tools** y con atajo de teclado (`Ctrl+Shift+X`); el menú contextual del grid de
 resultados se descartó (ver "Invocación" más arriba).
 
+## Milestone 5 — Menú top-level "Quick Tools"
+
+**Estado: funcionando (2026-09-14, v0.1.12, confirmado contra SSMS 22.6 real).**
+
+Los cuatro comandos vivían todos en `IDM_VS_MENU_TOOLS` (`ToolsMenuGroup`) porque M3/M4 confirmaron que
+los menús contextuales del editor y del grid de resultados no fusionan grupos de terceros. Se agregó un
+menú propio en la barra principal —`QuickToolsMenu`, anclado a `guidSHLMainMenu:IDG_VS_MM_TOOLSADDINS`,
+con un grupo plano hijo `QuickToolsMenuGroup`— y se reparentaron ahí los cuatro botones existentes. Es
+el mismo mecanismo de merge VSCT que ya funciona contra `IDM_VS_MENU_TOOLS`, aplicado a un punto de
+anclaje distinto de la misma barra; no requirió cambios en el código C# (los `OleMenuCommand` siguen
+registrados contra los mismos GUID/ID de `PackageGuids`/`PkgCmdId`).
+
+**Confirmado: SSMS 22.6 sí fusiona un menú top-level de terceros** en `IDG_VS_MM_TOOLSADDINS`, junto a
+Herramientas. El único obstáculo fue de testing, no de merge: SSMS cachea la barra de menús, así que tras
+reinstalar el `.vsix` con SSMS abierto el menú queda registrado (visible en Personalizar → Comandos →
+Menú, y se puede agregar a mano ahí) pero gris y sin desplegar. Cerrar y volver a abrir SSMS por completo
+refresca el cache y el menú aparece solo, habilitado, con los cuatro comandos. Ver
+[[ssms-vsix-testing-workflow]] en la memoria del proyecto: un cambio de `.vsct` requiere reinicio de SSMS
+además del bump de versión de siempre.
+
+Se probó primero con una red de seguridad temporal (`<CommandPlacements>` duplicando los comandos en
+`ToolsMenuGroup`) por si el merge top-level fallaba; una vez confirmado que funciona, se retiró ese
+bloque junto con `ToolsMenuGroup` y su `IDSymbol`. Los cuatro comandos viven ahora únicamente en
+`QuickToolsMenuGroup`.
+
 ## Verificación
 
 Todo se verifica contra SSMS real; no hay pruebas automatizadas de la capa de UI. Verificar como mínimo en **22.6.0** (piso soportado) y en la versión más reciente disponible, ya que el `GridReader` por reflection es lo que más probablemente difiera entre ambas.

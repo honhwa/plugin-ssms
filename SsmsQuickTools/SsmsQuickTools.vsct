@@ -15,6 +15,19 @@
           <CommandName>SSMS Quick Tools</CommandName>
         </Strings>
       </Menu>
+
+      <!-- Menu top-level propio en la barra principal, junto a Herramientas: destino canonico de
+           todos los comandos (ver docs/PLAN.md M5). Verificado contra SSMS 22.6 real: el merge
+           funciona, pero SSMS cachea la barra de menus, asi que un cambio de .vsct requiere
+           cerrar y reabrir SSMS por completo (no alcanza con reinstalar el .vsix) para que deje
+           de verse gris/sin desplegar. -->
+      <Menu guid="guidQuickToolsCmdSet" id="QuickToolsMenu" priority="0x0700" type="Menu">
+        <Parent guid="guidSHLMainMenu" id="IDG_VS_MM_TOOLSADDINS" />
+        <Strings>
+          <ButtonText>Quick Tools</ButtonText>
+          <CommandName>QuickTools</CommandName>
+        </Strings>
+      </Menu>
     </Menus>
 
     <Groups>
@@ -22,16 +35,16 @@
         <Parent guid="guidQuickToolsCmdSet" id="QuickConnectToolbar" />
       </Group>
 
-      <!-- Grupo en el menu Tools: script de datos del grid -->
-      <Group guid="guidQuickToolsCmdSet" id="ToolsMenuGroup" priority="0x0600">
-        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
+      <!-- Grupo plano dentro del menu Quick Tools: destino canonico de todos los comandos. -->
+      <Group guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" priority="0x0000">
+        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenu" />
       </Group>
 
     </Groups>
 
     <Buttons>
       <Button guid="guidQuickToolsCmdSet" id="cmdidScriptDataCommand" priority="0x0100" type="Button">
-        <Parent guid="guidQuickToolsCmdSet" id="ToolsMenuGroup" />
+        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="Copy" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
@@ -44,9 +57,9 @@
       <!-- Generar CREATE / Generar ALTER: se intento primero como menu contextual del editor de
            codigo, pero el editor de query de SSMS arma su popup a mano y no fusiona grupos de
            terceros pese a aparecer como "customizable" en Personalizar (confirmado empiricamente
-           contra SSMS 22.6). Quedan en Tools + atajo, igual que ScriptData (ver docs/PLAN.md M3). -->
+           contra SSMS 22.6). Quedan en Quick Tools + atajo, igual que ScriptData (ver docs/PLAN.md M3). -->
       <Button guid="guidEditorContextCmdSet" id="cmdidGenerateCreateCommand" priority="0x0110" type="Button">
-        <Parent guid="guidQuickToolsCmdSet" id="ToolsMenuGroup" />
+        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="Add" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
@@ -57,7 +70,7 @@
       </Button>
 
       <Button guid="guidEditorContextCmdSet" id="cmdidGenerateAlterCommand" priority="0x0111" type="Button">
-        <Parent guid="guidQuickToolsCmdSet" id="ToolsMenuGroup" />
+        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="Rename" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
@@ -79,10 +92,10 @@
            intento tambien fusionar en el menu contextual del grid de resultados
            (IDM_SQLWB_SQLRESGRID_CONTEXT, GUID_SQLEditorCommandSet); descartado tras
            verificacion empirica (2026-09-10) contra SSMS 22.6, mismo resultado que M3 con el
-           editor: SSMS no fusiona grupos de terceros en ese menu tampoco. Queda en Tools +
+           editor: SSMS no fusiona grupos de terceros en ese menu tampoco. Queda en Quick Tools +
            atajo, igual que ScriptData y Generar CREATE/ALTER. -->
       <Button guid="guidQuickToolsCmdSet" id="cmdidCopyXmlSpreadsheetCommand" priority="0x0120" type="Button">
-        <Parent guid="guidQuickToolsCmdSet" id="ToolsMenuGroup" />
+        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="Copy" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
@@ -121,7 +134,8 @@
     <GuidSymbol name="guidQuickToolsCmdSet" value="{2e7f3eab-6748-4aa6-bdcf-9c69e43a48fd}">
       <IDSymbol name="QuickConnectToolbar" value="0x1000" />
       <IDSymbol name="QuickConnectToolbarGroup" value="0x1001" />
-      <IDSymbol name="ToolsMenuGroup" value="0x1002" />
+      <IDSymbol name="QuickToolsMenu" value="0x1100" />
+      <IDSymbol name="QuickToolsMenuGroup" value="0x1101" />
 
       <IDSymbol name="cmdidConnectionCombo" value="0x0100" />
       <IDSymbol name="cmdidConnectionComboGetList" value="0x0101" />
