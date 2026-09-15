@@ -433,6 +433,47 @@ Se probó primero con una red de seguridad temporal (`<CommandPlacements>` dupli
 bloque junto con `ToolsMenuGroup` y su `IDSymbol`. Los cuatro comandos viven ahora únicamente en
 `QuickToolsMenuGroup`.
 
+## Milestone 6 — Auto Replacement
+
+**Estado: funcionando (2026-09-15, v0.2.0, confirmado contra SSMS 22.6.11806.211 real).** Es la
+función más invasiva hasta ahora: es la primera que intercepta el tecleo del editor. El filtro de
+comandos engancha Enter sin necesidad del fallback por `IVsSelectionEvents` — el spike no encontró
+obstáculos.
+
+Expande un token corto pegado al cursor al presionar **Enter**, reemplazándolo por un snippet SQL
+configurado por el usuario en `%APPDATA%\SsmsQuickTools\autoreplacement.xml`. Pensado para consultas
+de diagnóstico repetitivas (ej. `cm` → `SELECT TOP 200 * FROM dbo.cola_mensajes_n3 ...`).
+
+**Sin MEF.** El proyecto no tenía ninguna pieza MEF (`docs/PLAN.md` de M3/M4 ya documentó que SSMS
+22.6 arma su UI de editor a mano e ignora buena parte de la extensibilidad estándar de VS), así que
+meter la primera pieza MEF hubiera sido un riesgo no verificado. En cambio, Enter se intercepta como
+comando `VSStd2K.RETURN` sobre el `IVsTextView` activo, vía `IVsTextView.AddCommandFilter` — mismo
+layer COM legacy que ya usa `SsmsHost` para leer/escribir el buffer, sin tocar `vsixmanifest`.
+
+Arquitectura (`Features/AutoReplacement/`):
+- `AutoReplacementEntry` / `AutoReplacementCatalog`: mismo patrón que
+  `Features/QuickConnect/ConnectionCatalog.cs` (siembra de archivo de ejemplo, `FileSystemWatcher`
+  sin debounce, `catch` silencioso ante XML inválido conservando la última config válida). Parseo con
+  `XDocument` en vez de `XmlSerializer`/`DataContractJsonSerializer`, para no generar un ensamblado de
+  serialización en el primer arranque y para que `XElement.Value` preserve la indentación literal de
+  `<Replacement>`. Cada `<AutoReplacement>` admite varios `<Token>` (alias del mismo snippet).
+- `TokenScanner`, `SqlContextScanner`, `AutoReplacementExpander`: lógica pura (sin `using` de
+  SSMS/VS), cubierta por tests unitarios y enlazada a `SsmsQuickTools.Tests` igual que
+  `ValuesScriptBuilder`/`ObjectNameParser`. `SqlContextScanner` implementa un léxico T-SQL de una
+  pasada (cadenas, `[...]`, `"..."`, `--`, `/* */` anidado) para no expandir dentro de literales o
+  comentarios, porque el clasificador interno de SSMS no está expuesto.
+- `Ssms/TextViewEditor.cs`: helpers sobre un `IVsTextView` puntual (no "la vista activa" como
+  `SsmsHost`), mismo marshalling `ReplaceLines`/`CoTaskMem` que `SsmsHost.InsertTextIntoActiveView`.
+- `AutoReplacementCommandFilter` (`IOleCommandTarget` por vista) + `AutoReplacementService`
+  (`IVsTextManagerEvents`, engancha la vista activa al arrancar y cada vista nueva vía connection
+  point sobre `SVsTextManager`, `ConditionalWeakTable` para enganche idempotente sin retener vistas
+  cerradas) — mismo criterio que el plan B evaluado (y no implementado) en Milestone 4 para el grid.
+- `ExpandTokenCommand`: comando manual "Expandir token" en Quick Tools + `Ctrl+Shift+E` (plan C,
+  igual criterio que M3/M4/M5): si el filtro de Enter deja de engancharse en una versión futura de
+  SSMS, la función sigue siendo usable a mano.
+
+Confirmado por prueba manual contra SSMS 22.6.11806.211.
+
 ## Verificación
 
 Todo se verifica contra SSMS real; no hay pruebas automatizadas de la capa de UI. Verificar como mínimo en **22.6.0** (piso soportado) y en la versión más reciente disponible, ya que el `GridReader` por reflection es lo que más probablemente difiera entre ambas.
@@ -450,7 +491,9 @@ Todo se verifica contra SSMS real; no hay pruebas automatizadas de la capa de UI
   numérico con ceros a la izquierda, `datetime2(7)`, `date`, `time`, `bit`, `NULL`, `uniqueidentifier`,
   string con `<`, `&` y un tab), selección parcial de columnas, y confirmar el fallback TSV en Notepad.
 - Prueba de regresión de riesgo: reiniciar SSMS varias veces y confirmar que no se degrada el arranque ni aparecen errores en `%AppData%\Microsoft\SSMS\ActivityLog.xml` (arrancar con `Ssms.exe /log` para generarlo).
+- **M6 (Auto Replacement)**: **Hecho** (2026-09-15, contra SSMS 22.6.11806.211, v0.2.0): probado
+  manualmente por el usuario tras reinstalar el VSIX y reiniciar SSMS por completo — funciona bien.
 
 ## Unit tests
 
-`ValuesScriptBuilder`, `ObjectNameParser` y `XmlSpreadsheetBuilder` (Milestone 4) son lógica pura sin dependencias de SSMS: proyecto de tests separado con xUnit cubriendo inferencia de tipos, escapado, particionado en bloques de 1000, parseo de nombres, y las reglas de exactitud/precisión de `XmlSpreadsheetBuilder` (redondeo a `String` cuando el valor no hace round-trip, formato de fecha/hora, escapado XML).
+`ValuesScriptBuilder`, `ObjectNameParser` y `XmlSpreadsheetBuilder` (Milestone 4) son lógica pura sin dependencias de SSMS: proyecto de tests separado con xUnit cubriendo inferencia de tipos, escapado, particionado en bloques de 1000, parseo de nombres, y las reglas de exactitud/precisión de `XmlSpreadsheetBuilder` (redondeo a `String` cuando el valor no hace round-trip, formato de fecha/hora, escapado XML). `TokenScanner`, `SqlContextScanner` y `AutoReplacementExpander` (Milestone 6) siguen el mismo criterio.

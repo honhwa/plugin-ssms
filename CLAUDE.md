@@ -9,7 +9,7 @@ VS2022 shell and accepts `.vsix` installs, but Microsoft gives **no official sup
 extensions there — an SSMS update can break this at any time. Full design rationale, risk analysis, and
 milestone plan live in `docs/PLAN.md`; read it before touching `Ssms/` or `ScriptObject/`.
 
-Three features:
+Features:
 1. **Quick Connect** — a single "Quick Connections" toolbar combo that reconnects the active query window to
    a named server/database pair from a local `connections.json`.
 2. **Grid → Script** — copies the active result grid as a self-contained `SELECT` script (CTE + `VALUES`) to
@@ -18,6 +18,12 @@ Three features:
    bar), that script the object under selection. SSMS's editor and result-grid context menus don't merge
    third-party VSCT groups, so all commands live in the Quick Tools menu instead — see `docs/PLAN.md`
    Milestone 5.
+4. **Copy result as XML Spreadsheet** — copies the grid selection to the clipboard as an Excel-compatible
+   XML Spreadsheet fragment, preserving type/precision.
+5. **Auto Replacement** — expands a short token typed in the query editor into a configured SQL snippet
+   when Enter is pressed, per `%APPDATA%\SsmsQuickTools\autoreplacement.xml`. The only feature that
+   intercepts editor keystrokes — via `IVsTextView.AddCommandFilter` on `VSStd2K.RETURN`, not MEF (the
+   project has none). See `docs/PLAN.md` Milestone 6.
 
 ## Build
 
@@ -48,9 +54,12 @@ cleaning up broken installs.
 ## Tests
 
 `SsmsQuickTools.Tests` is xUnit and covers only the pure-logic pieces that have no SSMS dependency:
-`ValuesScriptBuilder` (type inference, escaping, VALUES batching) and `ObjectNameParser` (name parsing).
-Everything else (grid reading, SMO scripting, connection switching) is verified manually against a real
-SSMS instance — see the "Verificación" section of `docs/PLAN.md` for the manual checklist.
+`ValuesScriptBuilder` (type inference, escaping, VALUES batching), `ObjectNameParser` (name parsing),
+`XmlSpreadsheetBuilder`, and `TokenScanner`/`SqlContextScanner`/`AutoReplacementExpander` (Auto
+Replacement's token matching, string/comment detection, and cursor-marker logic).
+Everything else (grid reading, SMO scripting, connection switching, the editor command filter) is
+verified manually against a real SSMS instance — see the "Verificación" section of `docs/PLAN.md` for
+the manual checklist.
 
 ```
 dotnet test SsmsQuickTools.Tests
@@ -59,9 +68,11 @@ dotnet test SsmsQuickTools.Tests
 ## Architecture
 
 **`SsmsQuickToolsPackage`** (`AsyncPackage`) is the entry point. SSMS never has a solution open, so it
-autoloads on `UICONTEXT.NoSolution` rather than any command-based trigger. `InitializeAsync` wires up three
+autoloads on `UICONTEXT.NoSolution` rather than any command-based trigger. `InitializeAsync` wires up
 independent command groups, each self-registering against the shared `OleMenuCommandService`:
-`QuickConnectCommands`, `ScriptDataCommand`, `ScriptObjectCommands`.
+`QuickConnectCommands`, `ScriptDataCommand`, `ScriptObjectCommands`, `CopyXmlSpreadsheetCommand`,
+`ExpandTokenCommand` — plus `AutoReplacementService`, which isn't a command but attaches the editor
+command filter.
 
 **`Ssms/SsmsHost.cs`** is the single access point to SSMS's internal, undocumented APIs
 (`SQLEditors.dll` → `ServiceCache`/`IScriptFactory`, `SqlWorkbench.Interfaces.dll` → `UIConnectionInfo`).
@@ -95,6 +106,23 @@ later).
   `OBJECT_DEFINITION(OBJECT_ID(...))` and tables via SMO `Scripter`; `CreateAlterRewriter` turns a CREATE
   script into ALTER by regex-replacing the first `CREATE` token (tables have no ALTER equivalent — that
   path is disabled for them). `ScriptObjectCommands` reads the selection/word-under-cursor and drives it.
+- `CopyXmlSpreadsheet/` — `XmlSpreadsheetBuilder` builds an Excel-compatible XML Spreadsheet fragment
+  from grid data; `ClipboardDataObject` is a hand-written COM `IDataObject` implementation used to put
+  it on the clipboard alongside plain text.
+- `AutoReplacement/` — `AutoReplacementCatalog` loads/watches
+  `%APPDATA%\SsmsQuickTools\autoreplacement.xml` (`XDocument`, not `XmlSerializer`, so
+  `<Replacement>` keeps its literal whitespace and no serialization assembly gets JIT-generated on
+  first load) into `AutoReplacementEntry` records (one or more `<Token>` aliases per snippet).
+  `TokenScanner` finds the token glued to the caret; `SqlContextScanner` is a one-pass T-SQL lexer
+  that skips expansion inside string/bracket/quoted identifiers and `--`/`/* */` comments (nestable);
+  `AutoReplacementExpander` applies `CursorPositionMarker`/`SelectReplacement`. `TextViewEditor` (in
+  `Ssms/`, not `Features/`, since it's VS shell interop rather than an SSMS internal) holds the
+  `IVsTextView`-level read/replace/caret-placement helpers. `AutoReplacementCommandFilter`
+  (`IOleCommandTarget`, one per view) intercepts `VSStd2K.RETURN`; `AutoReplacementService`
+  (`IVsTextManagerEvents`) attaches it to the active view and every view SSMS registers afterward,
+  keyed in a `ConditionalWeakTable` so re-attachment is idempotent. `ExpandTokenCommand` is the same
+  expansion logic exposed as a manual Quick Tools command + `Ctrl+Shift+E`, so the feature still works
+  if the command-filter attach ever stops working on some future SSMS build.
 
 ## SSMS reference assemblies (`lib/ssms22.6/`)
 

@@ -473,7 +473,11 @@ namespace SsmsQuickTools.Ssms
             return string.IsNullOrEmpty(token) ? null : token;
         }
 
-        private static IVsTextView GetActiveTextView()
+        /// <summary>
+        /// Vista de texto activa (IVsTextView), o null si no hay ninguna. Publico para que
+        /// AutoReplacementService pueda enganchar su filtro de comandos sobre ella.
+        /// </summary>
+        public static IVsTextView GetActiveTextView()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 

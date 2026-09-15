@@ -104,6 +104,21 @@
           <ToolTipText>Copia la selección del grid de resultados al portapapeles en formato XML Spreadsheet (Excel), preservando tipo y precisión</ToolTipText>
         </Strings>
       </Button>
+
+      <!-- Auto Replacement (Milestone 6, docs/PLAN.md): expande el token pegado al cursor segun
+           autoreplacement.xml. Se entrega tambien como filtro de comandos sobre Enter en el
+           editor; este comando de menu+atajo es el plan C que garantiza que la funcion siga
+           siendo usable si ese enganche deja de funcionar en una version futura de SSMS. -->
+      <Button guid="guidQuickToolsCmdSet" id="cmdidExpandTokenCommand" priority="0x0130" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="Snippet" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Expandir token</ButtonText>
+          <MenuText>Expandir token</MenuText>
+          <ToolTipText>Expande el token pegado al cursor segun autoreplacement.xml</ToolTipText>
+        </Strings>
+      </Button>
     </Buttons>
 
     <Combos>
@@ -126,6 +141,7 @@
     <KeyBinding guid="guidEditorContextCmdSet" id="cmdidGenerateCreateCommand" editor="guidVSStd97" key1="C" mod1="Control Shift" />
     <KeyBinding guid="guidEditorContextCmdSet" id="cmdidGenerateAlterCommand" editor="guidVSStd97" key1="A" mod1="Control Shift" />
     <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidCopyXmlSpreadsheetCommand" editor="guidVSStd97" key1="X" mod1="Control Shift" />
+    <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidExpandTokenCommand" editor="guidVSStd97" key1="E" mod1="Control Shift" />
   </KeyBindings>
 
   <Symbols>
@@ -142,6 +158,7 @@
 
       <IDSymbol name="cmdidScriptDataCommand" value="0x0200" />
       <IDSymbol name="cmdidCopyXmlSpreadsheetCommand" value="0x0201" />
+      <IDSymbol name="cmdidExpandTokenCommand" value="0x0202" />
     </GuidSymbol>
 
     <GuidSymbol name="guidEditorContextCmdSet" value="{d71b3e2f-929e-4f15-9652-e299c6a4b288}">

@@ -6,7 +6,9 @@ Extensión VSIX para SQL Server Management Studio **22.6.0 en adelante**.
 
 1. **Quick Connect**: combo "Quick Connections" en toolbar para reconectar la ventana de query activa a una conexión (servidor + base) definida por nombre en un archivo de configuración local.
 2. **Grid → Script**: copia el resultado de una consulta al portapapeles como un script `SELECT` autocontenido (CTE + `VALUES`), listo para pegar y ejecutar.
-3. **Generar CREATE / Generar ALTER**: menú contextual en el editor sobre el nombre de un objeto seleccionado.
+3. **Generar CREATE / Generar ALTER**: comandos en el menú **Quick Tools** (barra principal) que scriptean el objeto bajo el cursor o la selección.
+4. **Copiar selección como XML Spreadsheet**: copia la selección del grid de resultados al portapapeles en formato XML Spreadsheet (Excel), preservando tipo y precisión.
+5. **Auto Replacement**: escribir un token corto y presionar Enter en el editor de query lo reemplaza por un snippet SQL configurado en `%APPDATA%\SsmsQuickTools\autoreplacement.xml`.
 
 Ver el plan de diseño completo en `docs/PLAN.md`.
 
@@ -28,7 +30,7 @@ lib/ssms22.6/              Ensamblados de SSMS 22.6.0 usados como referencia (no
 ## Compilar
 
 Abrir `SsmsQuickTools.sln` en Visual Studio 2022 y compilar. El VSIX resultante queda en
-`SsmsQuickTools\bin\Debug\SsmsQuickTools.vsix`.
+`SsmsQuickTools\bin\Release\net48\SsmsQuickTools.vsix` (o `bin\Debug\...` en Debug).
 
 ## Depurar
 
@@ -54,3 +56,34 @@ Lista plana de conexiones con nombre, cada una con su servidor y base:
 ```
 
 Solo autenticación de Windows; el archivo no admite usuario/password.
+
+## Configurar Auto Replacement
+
+Editar `%APPDATA%\SsmsQuickTools\autoreplacement.xml` (se crea con un ejemplo si no existe al
+iniciar SSMS). Cada `<AutoReplacement>` admite uno o varios `<Token>` (alias) que expanden al mismo
+texto al presionar Enter en el editor de query:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<AutoReplacements>
+
+  <AutoReplacement>
+    <Token>cm</Token>
+    <Token>colamen</Token>
+    <CaseSensitive>false</CaseSensitive>
+    <Name>Cola Mensajes</Name>
+    <Replacement>SELECT TOP 200 * FROM dbo.cola_mensajes_n3 WITH(NOLOCK) WHERE 1=1 #
+-- AND id_linea = 11111111
+ORDER BY id_mensaje DESC</Replacement>
+    <SelectReplacement>false</SelectReplacement>
+    <CursorPositionMarker>#</CursorPositionMarker>
+  </AutoReplacement>
+
+</AutoReplacements>
+```
+
+`CursorPositionMarker` indica el carácter que marca dónde queda el cursor tras expandir (se borra del
+texto); si no aparece en `Replacement`, el cursor queda al final. `SelectReplacement=true` selecciona
+todo el texto insertado en lugar de posicionar el cursor. No expande dentro de cadenas ni comentarios
+SQL. Si el filtro de Enter no se engancha en alguna instalación, la misma expansión está disponible
+como comando manual "Expandir token" (Quick Tools, `Ctrl+Shift+E`).

@@ -26,6 +26,10 @@
     <Compile Include="..\SsmsQuickTools\Ssms\TsvParser.cs" Link="Ssms\TsvParser.cs" />
     <Compile Include="..\SsmsQuickTools\Ssms\IResultSetReader.cs" Link="Ssms\IResultSetReader.cs" />
     <Compile Include="..\SsmsQuickTools\Features\CopyXmlSpreadsheet\XmlSpreadsheetBuilder.cs" Link="CopyXmlSpreadsheet\XmlSpreadsheetBuilder.cs" />
+    <Compile Include="..\SsmsQuickTools\Features\AutoReplacement\AutoReplacementEntry.cs" Link="AutoReplacement\AutoReplacementEntry.cs" />
+    <Compile Include="..\SsmsQuickTools\Features\AutoReplacement\TokenScanner.cs" Link="AutoReplacement\TokenScanner.cs" />
+    <Compile Include="..\SsmsQuickTools\Features\AutoReplacement\SqlContextScanner.cs" Link="AutoReplacement\SqlContextScanner.cs" />
+    <Compile Include="..\SsmsQuickTools\Features\AutoReplacement\AutoReplacementExpander.cs" Link="AutoReplacement\AutoReplacementExpander.cs" />
   </ItemGroup>
 
   <ItemGroup>
