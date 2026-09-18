@@ -5,7 +5,7 @@ Extensión VSIX para SQL Server Management Studio **22.6.0 en adelante**.
 ## Funcionalidades
 
 1. **Quick Connect**: combo "Quick Connections" en toolbar para reconectar la ventana de query activa a una conexión (servidor + base) definida por nombre en un archivo de configuración local.
-2. **Grid → Script**: copia el resultado de una consulta al portapapeles como un script `SELECT` autocontenido (CTE + `VALUES`), listo para pegar y ejecutar.
+2. **Grid → Script**: copia el resultado de una consulta al portapapeles como uno o más statements `INSERT INTO XXXXXXXX SELECT * FROM (VALUES ...) v (...)`, listos para pegar sobre la tabla destino real (reemplazando `XXXXXXXX`) y ejecutar.
 3. **Generar CREATE / Generar ALTER**: comandos en el menú **Quick Tools** (barra principal) que scriptean el objeto bajo el cursor o la selección.
 4. **Copiar selección como XML Spreadsheet**: copia la selección del grid de resultados al portapapeles en formato XML Spreadsheet (Excel), preservando tipo y precisión.
 5. **Auto Replacement**: escribir un token corto y presionar Enter en el editor de query lo reemplaza por un snippet SQL configurado en `%APPDATA%\SsmsQuickTools\autoreplacement.xml`.

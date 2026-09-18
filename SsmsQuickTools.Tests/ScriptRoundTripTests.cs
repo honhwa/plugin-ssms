@@ -15,6 +15,11 @@ namespace SsmsQuickTools.Tests
     /// hueco que los unit tests de <see cref="ValuesScriptBuilderTests"/> no cubren: que el SQL
     /// generado de verdad EJECUTE, no solo que el texto tenga la forma esperada.
     ///
+    /// El script real produce <c>INSERT INTO XXXXXXXX ...</c>, que no ejecuta solo (el marcador
+    /// no es una tabla real). Para poder correr el round-trip se quita el prefijo <c>INSERT INTO
+    /// XXXXXXXX</c> con <see cref="ToSelectOnly"/> y se ejecuta el <c>SELECT * FROM (VALUES ...)</c>
+    /// suelto, que sí es válido por sí mismo.
+    ///
     /// Se salta entero si SSMSQT_TEST_CONNECTION no esta definida, para que `dotnet test` siga
     /// verde en una maquina sin servidor. En la maquina de desarrollo:
     ///   SSMSQT_TEST_CONNECTION=Server=LENOVOJOSE\DEV01;Database=Figuritas;Integrated Security=true;TrustServerCertificate=true
@@ -31,6 +36,13 @@ namespace SsmsQuickTools.Tests
 
         private static bool HasConnection => !string.IsNullOrWhiteSpace(ConnectionString);
 
+        /// <summary>
+        /// Quita el prefijo <c>INSERT INTO XXXXXXXX</c> de cada statement, dejando los
+        /// <c>SELECT * FROM (VALUES ...) v (...)</c> sueltos y ejecutables por separado.
+        /// </summary>
+        private static string ToSelectOnly(string sql) =>
+            sql.Replace("INSERT INTO " + ValuesScriptBuilder.DefaultTargetTable + Environment.NewLine, string.Empty);
+
         [SkippableFact]
         public void TiposMixtos_ScriptGeneradoEjecutaYDevuelveLasMismasFilas()
         {
@@ -45,7 +57,7 @@ namespace SsmsQuickTools.Tests
             using (var connection = new SqlConnection(ConnectionString))
             {
                 connection.Open();
-                using (var command = new SqlCommand(sql, connection))
+                using (var command = new SqlCommand(ToSelectOnly(sql), connection))
                 using (var reader = command.ExecuteReader())
                 {
                     var actualRows = new List<string[]>();
@@ -90,7 +102,7 @@ namespace SsmsQuickTools.Tests
             using (var connection = new SqlConnection(ConnectionString))
             {
                 connection.Open();
-                using (var command = new SqlCommand(sql, connection))
+                using (var command = new SqlCommand(ToSelectOnly(sql), connection))
                 using (var reader = command.ExecuteReader())
                 {
                     Assert.True(reader.Read());
@@ -116,19 +128,22 @@ namespace SsmsQuickTools.Tests
             Assert.Equal(1500, data.Rows.Count);
 
             var sql = ValuesScriptBuilder.Build(data.Columns.ToList(), data.Rows.ToList());
-            Assert.Contains("UNION ALL", sql);
+            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(sql, "INSERT INTO XXXXXXXX").Count);
 
             using (var connection = new SqlConnection(ConnectionString))
             {
                 connection.Open();
-                using (var command = new SqlCommand(sql, connection))
+                using (var command = new SqlCommand(ToSelectOnly(sql), connection))
                 using (var reader = command.ExecuteReader())
                 {
                     var count = 0;
-                    while (reader.Read())
+                    do
                     {
-                        count++;
-                    }
+                        while (reader.Read())
+                        {
+                            count++;
+                        }
+                    } while (reader.NextResult());
                     Assert.Equal(1500, count);
                 }
             }
@@ -151,14 +166,17 @@ namespace SsmsQuickTools.Tests
             using (var connection = new SqlConnection(ConnectionString))
             {
                 connection.Open();
-                using (var command = new SqlCommand(sql, connection))
+                using (var command = new SqlCommand(ToSelectOnly(sql), connection))
                 using (var reader = command.ExecuteReader())
                 {
                     var count = 0;
-                    while (reader.Read())
+                    do
                     {
-                        count++;
-                    }
+                        while (reader.Read())
+                        {
+                            count++;
+                        }
+                    } while (reader.NextResult());
                     Assert.Equal(1500, count);
                 }
             }
@@ -172,13 +190,15 @@ namespace SsmsQuickTools.Tests
             var fixturePath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "tipos_mixtos.tsv");
             var tsv = File.ReadAllText(fixturePath);
             var data = TsvParser.Parse(tsv);
-            var sql = ValuesScriptBuilder.Build(data.Columns.ToList(), data.Rows.ToList());
+            var sql = ToSelectOnly(ValuesScriptBuilder.Build(data.Columns.ToList(), data.Rows.ToList()));
 
             using (var connection = new SqlConnection(ConnectionString))
             {
                 connection.Open();
                 // SET PARSEONLY separa "no compila" (fallaria aca) de "compila pero devuelve
-                // datos distintos" (lo verifica el test de arriba).
+                // datos distintos" (lo verifica el test de arriba). Se usa ToSelectOnly porque
+                // "INSERT INTO XXXXXXXX" falla con "Invalid object name" (resolucion de nombre
+                // de objeto, no error de sintaxis) incluso bajo PARSEONLY.
                 using (var command = new SqlCommand("SET PARSEONLY ON;" + sql + "SET PARSEONLY OFF;", connection))
                 {
                     var ex = Record.Exception(() => command.ExecuteNonQuery());

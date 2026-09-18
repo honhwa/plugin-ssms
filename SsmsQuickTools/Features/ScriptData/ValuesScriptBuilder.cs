@@ -23,10 +23,12 @@ namespace SsmsQuickTools.Features.ScriptData
     }
 
     /// <summary>
-    /// Genera un script SQL autocontenido (CTE + VALUES) que reproduce el resultado de un
-    /// grid al pegarlo y ejecutarlo. Logica pura, sin dependencias de SSMS: inferencia de
-    /// tipos por columna a partir del texto de las celdas, escapado y particionado en
-    /// bloques (VALUES admite hasta 1000 filas por constructor).
+    /// Genera uno o mas statements SQL <c>INSERT INTO ... SELECT * FROM (VALUES ...) v (...)</c>
+    /// que reproducen el resultado de un grid, listos para pegar sobre la tabla destino real
+    /// (reemplazando el marcador <see cref="DefaultTargetTable"/>) y ejecutar. Logica pura, sin
+    /// dependencias de SSMS: inferencia de tipos por columna a partir del texto de las celdas,
+    /// escapado y particionado en bloques (VALUES admite hasta 1000 filas por constructor; por
+    /// encima de eso se emite un INSERT por bloque).
     /// </summary>
     public static class ValuesScriptBuilder
     {
@@ -35,9 +37,15 @@ namespace SsmsQuickTools.Features.ScriptData
         public static readonly string NullLiteral = "NULL";
 
         /// <summary>
-        /// Construye el script completo. <paramref name="cteName"/> nombra la CTE/tabla derivada.
+        /// Marcador de tabla destino que el usuario reemplaza a mano al pegar el script.
         /// </summary>
-        public static string Build(IReadOnlyList<string> columns, IReadOnlyList<string[]> rows, string cteName = "datos")
+        public const string DefaultTargetTable = "XXXXXXXX";
+
+        /// <summary>
+        /// Construye el script completo. <paramref name="targetTable"/> se emite crudo (sin
+        /// QuoteIdentifier) tras <c>INSERT INTO</c>: por defecto es el marcador <see cref="DefaultTargetTable"/>.
+        /// </summary>
+        public static string Build(IReadOnlyList<string> columns, IReadOnlyList<string[]> rows, string targetTable = DefaultTargetTable)
         {
             if (columns == null || columns.Count == 0)
             {
@@ -56,30 +64,26 @@ namespace SsmsQuickTools.Features.ScriptData
                 // Sin filas: se genera un SELECT vacio tipado como NVARCHAR para que al menos
                 // ejecute sin error, aclarando que no habia datos.
                 var emptySelect = string.Join(", ", quotedColumns.Select(c => $"CAST(NULL AS nvarchar(1)) AS {c}"));
-                return $"SELECT {emptySelect} WHERE 1 = 0;";
+                return $"INSERT INTO {targetTable}{Environment.NewLine}    SELECT {emptySelect} WHERE 1 = 0;";
             }
 
             var columnTypes = InferColumnTypes(columns.Count, rows);
             var blocks = Partition(rows, MaxRowsPerValuesBlock);
 
             var sb = new StringBuilder();
-            sb.Append("WITH ").Append(QuoteIdentifier(cteName)).Append(" (").Append(columnList).Append(") AS (");
-            sb.AppendLine();
-
             for (var b = 0; b < blocks.Count; b++)
             {
                 if (b > 0)
                 {
-                    sb.AppendLine("    UNION ALL");
+                    sb.AppendLine();
                 }
+                sb.Append("INSERT INTO ").Append(targetTable).AppendLine();
                 sb.AppendLine("    SELECT * FROM (VALUES");
                 AppendValuesBlock(sb, blocks[b], columnTypes);
-                sb.Append("    ) v (").Append(columnList).Append(")");
+                sb.Append("    ) v (").Append(columnList).Append(");");
                 sb.AppendLine();
             }
 
-            sb.AppendLine(")");
-            sb.Append("SELECT * FROM ").Append(QuoteIdentifier(cteName)).AppendLine(";");
             return sb.ToString();
         }
 

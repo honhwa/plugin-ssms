@@ -21,8 +21,8 @@ namespace SsmsQuickTools.Tests
             Assert.DoesNotContain("CAST(", sql);
             Assert.Contains("(1, N'Ana', '2026-01-15')", sql);
             Assert.Contains("N'Lu''is'", sql); // escapado de comilla simple
-            Assert.Contains("WITH [datos]", sql);
-            Assert.Contains("SELECT * FROM [datos]", sql);
+            Assert.Contains("INSERT INTO XXXXXXXX", sql);
+            Assert.Contains(") v ([Id], [Nombre], [Fecha]);", sql);
         }
 
         [Fact]
@@ -65,10 +65,11 @@ namespace SsmsQuickTools.Tests
             var sql = ValuesScriptBuilder.Build(columns, rows);
 
             Assert.Contains("WHERE 1 = 0", sql);
+            Assert.Contains("INSERT INTO XXXXXXXX", sql);
         }
 
         [Fact]
-        public void Build_MasDe1000Filas_ParticionaEnBloquesConUnionAll()
+        public void Build_MasDe1000Filas_ParticionaEnVariosInsert()
         {
             var columns = new List<string> { "Id" };
             var rows = new List<string[]>();
@@ -79,7 +80,8 @@ namespace SsmsQuickTools.Tests
 
             var sql = ValuesScriptBuilder.Build(columns, rows);
 
-            Assert.Contains("UNION ALL", sql);
+            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(sql, "INSERT INTO XXXXXXXX").Count);
+            Assert.DoesNotContain("UNION ALL", sql);
             Assert.DoesNotContain("CAST(", sql);
         }
 
@@ -220,8 +222,19 @@ namespace SsmsQuickTools.Tests
 
             var sql = ValuesScriptBuilder.Build(columns, rows);
 
-            Assert.Contains("UNION ALL", sql);
+            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(sql, "INSERT INTO XXXXXXXX").Count);
             Assert.Contains("(1000, NULL)", sql);
+        }
+
+        [Fact]
+        public void Build_TargetTablePersonalizado_SeEmiteCrudo()
+        {
+            var columns = new List<string> { "Id" };
+            var rows = new List<string[]> { new[] { "1" } };
+
+            var sql = ValuesScriptBuilder.Build(columns, rows, "dbo.Destino");
+
+            Assert.Contains("INSERT INTO dbo.Destino", sql);
         }
 
         [Fact]
