@@ -29,12 +29,19 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.12.2069" />
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.11.40262" ExcludeAssets="runtime" />
-    <!-- SMO (Microsoft.SqlServer.Smo.dll de SSMS 22.6) espera Microsoft.Data.SqlClient, no System.Data.SqlClient -->
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Ensamblados de SSMS 22.6, no redistribuibles: ver lib/ssms22.6/README.md -->
+    <!-- Microsoft.Data.SqlClient: referenciada contra la copia de SSMS (no como PackageReference)
+         para no empaquetar en el VSIX un arbol de dependencias (Azure.Core/Azure.Identity/MSAL/
+         System.Text.Json) mas viejo que el que SSMS ya carga para otras extensiones (Copilot,
+         SSMSAgent). SMO (Microsoft.SqlServer.Smo.dll) tambien espera este tipo, no System.Data.SqlClient. -->
+    <Reference Include="Microsoft.Data.SqlClient">
+      <HintPath>..\lib\ssms22.6\Microsoft.Data.SqlClient.dll</HintPath>
+      <Private>false</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
     <Reference Include="Microsoft.SqlServer.Smo">
       <HintPath>..\lib\ssms22.6\Microsoft.SqlServer.Smo.dll</HintPath>
       <Private>false</Private>

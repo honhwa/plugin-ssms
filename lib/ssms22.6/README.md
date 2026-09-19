@@ -19,5 +19,15 @@ Archivos:
   `Microsoft.SqlServer.Management.UI.VSIntegration.ServiceCache`, usados para conexión activa y
   creación de query windows (Milestones 1 y 3).
 - `SqlWorkbench.Interfaces.dll` — `UIConnectionInfo` y tipos relacionados.
+- `Microsoft.Data.SqlClient.dll` — `SqlConnection`/`SqlConnectionStringBuilder`, usados en
+  `Ssms/SsmsHost.cs`, `Features/ScriptObject/ObjectScripter.cs` y
+  `Features/QuickConnect/QuickConnectCommands.cs`. Referenciada acá (no como `PackageReference`)
+  para no empaquetar en el `.vsix` un árbol de dependencias transitivas (Azure.Core,
+  Azure.Identity, MSAL, System.Text.Json) más viejo que el que SSMS ya carga para otras
+  extensiones — un solo AppDomain de .NET Framework resuelve por identidad de assembly, así que
+  una copia vieja en la carpeta de esta extensión podría ganarle a la nueva que espera otro
+  componente de SSMS. El `.vsix` tampoco traía las `Microsoft.Data.SqlClient.SNI.*.dll` nativas,
+  así que la copia empaquetada nunca fue funcional por sí sola: en la práctica ya se dependía de
+  la de SSMS.
 
 Ruta origen (instalación de referencia): `C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\`.

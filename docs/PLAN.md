@@ -198,7 +198,8 @@ Comando expuesto en el menú contextual del grid de resultados y en **Tools**, c
    `IDM_SQLWB_SQLSCRIPT_CONTEXT` (guid propio de `SQLEditors.dll`, `Microsoft.SqlServer.Management.UI.VSIntegration.Editors.SQLWorkbenchCommands`),
    ninguno se fusiona. En su lugar: "Generar CREATE" y "Generar ALTER" van en el menú **Tools**
    (mismo grupo que "Copiar resultado como script SELECT") con atajo de teclado
-   (`Ctrl+Shift+C` / `Ctrl+Shift+A`).
+   (`Ctrl+K, Ctrl+2` / `Ctrl+K, Ctrl+3`; originalmente `Ctrl+Shift+C`/`Ctrl+Shift+A`, cambiado
+   luego para no chocar con atajos de otras extensiones).
 2. Texto seleccionado vía `IVsTextManager.GetActiveView` → `IVsTextView.GetSelectedText()`; si no hay selección, tomar la palabra bajo el cursor.
 3. `ObjectNameParser` normaliza `[db].[schema].[obj]`, `schema.obj` u `obj` (con `dbo` y la base actual como defaults).
 4. `ObjectScripter`, sobre la conexión activa:
@@ -289,7 +290,7 @@ fila de datos.
    pese a que los metadatos del ensamblado sí referencian `IVsUIShell.ShowContextMenu`. Se revirtió el
    grupo/placement/símbolos del intento (código muerto sin utilidad) y se descartó también el plan B por
    el mismo motivo que originalmente lo hacía condicional: sin plan A, no vale el riesgo de enganchar
-   `ContextMenuStrip` en runtime para ganar un click derecho que Tools + `Ctrl+Shift+X` ya cubre
+   `ContextMenuStrip` en runtime para ganar un click derecho que Tools + `Ctrl+K, Ctrl+4` ya cubre
    (confirmado funcionando). El comando queda solo por esas dos vías, como en M2/M3.
 2. **`ContextMenuStrip` en tiempo de ejecución (plan B, evaluado y descartado sin implementar).**
    **Decisión (2026-09-10)**: con plan A confirmado muerto, se optó por no intentar plan B — el riesgo
@@ -309,8 +310,8 @@ fila de datos.
    mostrar su propio popup, así que el `ContextMenuStrip` de WinForms puede no dispararse nunca, o
    dispararse *además* del menú de SSMS (dos popups). Cualquiera de los dos casos descarta también el
    plan B.
-3. **Menú Tools + atajo de teclado (plan C, se entrega siempre).** Igual patrón que M2/M3: `Ctrl+Shift+X`
-   (libre; ocupados: `D`, `C`, `A`), bajo `ToolsMenuGroup`. No es condicional a que A o B funcionen — se
+3. **Menú Tools + atajo de teclado (plan C, se entrega siempre).** Igual patrón que M2/M3: `Ctrl+K, Ctrl+4`
+   (acorde con prefijo `Ctrl+K`, para no chocar con atajos de otras extensiones), bajo `ToolsMenuGroup`. No es condicional a que A o B funcionen — se
    entrega siempre, así la funcionalidad nunca queda bloqueada por el menú contextual. El resultado de A y
    B (funcionó / no funcionó, y por qué) se documenta acá con fecha y build de SSMS, igual que el
    `~~tachado~~` + "Descartado tras verificación empírica" de M3.
@@ -408,7 +409,7 @@ mismo tratamiento de `MessageBox` que `ScriptDataCommand.cs:69-77`.
 (`ScriptDataCommand.cs:16,45-56`). No hay límite duro tipo `VALUES` acá, así que sin particionado: un solo
 `<Table>` con todas las filas seleccionadas.
 
-Comando expuesto en **Tools** y con atajo de teclado (`Ctrl+Shift+X`); el menú contextual del grid de
+Comando expuesto en **Tools** y con atajo de teclado (`Ctrl+K, Ctrl+4`); el menú contextual del grid de
 resultados se descartó (ver "Invocación" más arriba).
 
 ## Milestone 5 — Menú top-level "Quick Tools"
@@ -471,7 +472,7 @@ Arquitectura (`Features/AutoReplacement/`):
   (`IVsTextManagerEvents`, engancha la vista activa al arrancar y cada vista nueva vía connection
   point sobre `SVsTextManager`, `ConditionalWeakTable` para enganche idempotente sin retener vistas
   cerradas) — mismo criterio que el plan B evaluado (y no implementado) en Milestone 4 para el grid.
-- `ExpandTokenCommand`: comando manual "Expandir token" en Quick Tools + `Ctrl+Shift+E` (plan C,
+- `ExpandTokenCommand`: comando manual "Expandir token" en Quick Tools + `Ctrl+K, Ctrl+5` (plan C,
   igual criterio que M3/M4/M5): si el filtro de Enter deja de engancharse en una versión futura de
   SSMS, la función sigue siendo usable a mano.
 

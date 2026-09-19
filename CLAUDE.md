@@ -121,7 +121,7 @@ later).
   (`IOleCommandTarget`, one per view) intercepts `VSStd2K.RETURN`; `AutoReplacementService`
   (`IVsTextManagerEvents`) attaches it to the active view and every view SSMS registers afterward,
   keyed in a `ConditionalWeakTable` so re-attachment is idempotent. `ExpandTokenCommand` is the same
-  expansion logic exposed as a manual Quick Tools command + `Ctrl+Shift+E`, so the feature still works
+  expansion logic exposed as a manual Quick Tools command + `Ctrl+K, Ctrl+5`, so the feature still works
   if the command-filter attach ever stops working on some future SSMS build.
 
 ## SSMS reference assemblies (`lib/ssms22.6/`)

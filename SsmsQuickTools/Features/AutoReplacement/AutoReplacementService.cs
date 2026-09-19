@@ -2,6 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.TextManager.Interop;
@@ -22,6 +23,14 @@ namespace SsmsQuickTools.Features.AutoReplacement
 
         private IConnectionPoint _connectionPoint;
         private int _cookie;
+
+        // GUID del language service de la primera vista de texto que se vea (arranque, o el
+        // primer OnRegisterView). En una instalacion de SSMS eso es, en la practica, siempre una
+        // ventana de query T-SQL: es la unica clase de editor de texto que SSMS abre por su
+        // cuenta. No se hardcodea el GUID del language service T-SQL (no es un valor documentado
+        // ni estable entre builds de SSMS); se aprende una sola vez y sirve despues para no
+        // engancharse a editores de texto de otras extensiones/ventanas de herramientas.
+        private Guid? _sqlLanguageServiceId;
 
         public AutoReplacementService(AutoReplacementCatalog catalog)
         {
@@ -68,11 +77,57 @@ namespace SsmsQuickTools.Features.AutoReplacement
                 return;
             }
 
+            if (!IsSqlEditorBuffer(view))
+            {
+                return;
+            }
+
             var filter = AutoReplacementCommandFilter.Attach(view, _catalog);
             if (filter != null)
             {
                 _filters.Add(view, filter);
             }
+        }
+
+        /// <summary>
+        /// True si <paramref name="view"/> es una ventana de query T-SQL, para no engancharse a
+        /// editores de texto de otras extensiones u otras ventanas de herramientas con buffer.
+        /// Ver comentario de <see cref="_sqlLanguageServiceId"/>: la primera vista que se ve
+        /// establece el GUID de referencia; si todavia no hay uno, se asume que si (arranque de
+        /// SSMS con una ventana de query ya abierta) y esa vista fija el GUID de referencia.
+        /// </summary>
+        private bool IsSqlEditorBuffer(IVsTextView view)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (!TryGetLanguageServiceId(view, out var languageServiceId))
+            {
+                // No se pudo leer el language service: solo enganchar si todavia no hay
+                // referencia (arranque), para no dejar la funcion sin poder engancharse nunca.
+                return _sqlLanguageServiceId == null;
+            }
+
+            if (_sqlLanguageServiceId == null)
+            {
+                _sqlLanguageServiceId = languageServiceId;
+                return true;
+            }
+
+            return languageServiceId == _sqlLanguageServiceId.Value;
+        }
+
+        private static bool TryGetLanguageServiceId(IVsTextView view, out Guid languageServiceId)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            languageServiceId = Guid.Empty;
+
+            if (ErrorHandler.Failed(view.GetBuffer(out var buffer)) || !(buffer is IVsTextLines textLines))
+            {
+                return false;
+            }
+
+            return ErrorHandler.Succeeded(textLines.GetLanguageServiceID(out languageServiceId));
         }
 
         public void OnRegisterView(IVsTextView pView)

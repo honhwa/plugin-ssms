@@ -86,4 +86,4 @@ ORDER BY id_mensaje DESC</Replacement>
 texto); si no aparece en `Replacement`, el cursor queda al final. `SelectReplacement=true` selecciona
 todo el texto insertado en lugar de posicionar el cursor. No expande dentro de cadenas ni comentarios
 SQL. Si el filtro de Enter no se engancha en alguna instalación, la misma expansión está disponible
-como comando manual "Expandir token" (Quick Tools, `Ctrl+Shift+E`).
+como comando manual "Expandir token" (Quick Tools, `Ctrl+K, Ctrl+5`).

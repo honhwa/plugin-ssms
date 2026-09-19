@@ -136,12 +136,15 @@
 
   </Commands>
 
+  <!-- Acordes Ctrl+K, Ctrl+<n> en lugar de teclas unicas Ctrl+Shift+<letra>: ese espacio de una
+       sola tecla esta tomado por comandos de VS/SSMS y es el que suelen tomar otras extensiones
+       de terceros; el prefijo Ctrl+K con digitos esta prácticamente libre. -->
   <KeyBindings>
-    <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidScriptDataCommand" editor="guidVSStd97" key1="D" mod1="Control Shift" />
-    <KeyBinding guid="guidEditorContextCmdSet" id="cmdidGenerateCreateCommand" editor="guidVSStd97" key1="C" mod1="Control Shift" />
-    <KeyBinding guid="guidEditorContextCmdSet" id="cmdidGenerateAlterCommand" editor="guidVSStd97" key1="A" mod1="Control Shift" />
-    <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidCopyXmlSpreadsheetCommand" editor="guidVSStd97" key1="X" mod1="Control Shift" />
-    <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidExpandTokenCommand" editor="guidVSStd97" key1="E" mod1="Control Shift" />
+    <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidScriptDataCommand" editor="guidVSStd97" key1="K" mod1="Control" key2="1" mod2="Control" />
+    <KeyBinding guid="guidEditorContextCmdSet" id="cmdidGenerateCreateCommand" editor="guidVSStd97" key1="K" mod1="Control" key2="2" mod2="Control" />
+    <KeyBinding guid="guidEditorContextCmdSet" id="cmdidGenerateAlterCommand" editor="guidVSStd97" key1="K" mod1="Control" key2="3" mod2="Control" />
+    <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidCopyXmlSpreadsheetCommand" editor="guidVSStd97" key1="K" mod1="Control" key2="4" mod2="Control" />
+    <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidExpandTokenCommand" editor="guidVSStd97" key1="K" mod1="Control" key2="5" mod2="Control" />
   </KeyBindings>
 
   <Symbols>
