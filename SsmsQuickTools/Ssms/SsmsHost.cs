@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Reflection;
+using System.Windows.Forms;
 using Microsoft.Data.SqlClient;
 using Microsoft.SqlServer.Management.Smo.RegSvrEnum;
 using Microsoft.SqlServer.Management.UI.VSIntegration.Editors;
@@ -307,6 +310,31 @@ namespace SsmsQuickTools.Ssms
         }
 
         /// <summary>
+        /// Invoca el overload sin parametros de un metodo heredado, cuando el tipo declara mas de
+        /// un overload con ese nombre (<c>GetMethod(string, BindingFlags)</c> lanza
+        /// <see cref="AmbiguousMatchException"/> en ese caso, a diferencia de
+        /// <see cref="TryInvokeInheritedMethod"/>). Mejor esfuerzo: si falla, no hace nada.
+        /// </summary>
+        private static void InvokeParameterlessInheritedMethod(object instance, Type type, string methodName)
+        {
+            try
+            {
+                var declaringType = FindDeclaringType(type, t => Array.Exists(
+                    t.GetMethods(InstanceAny | BindingFlags.DeclaredOnly),
+                    m => m.Name == methodName && m.GetParameters().Length == 0));
+                var method = declaringType?.GetMethods(InstanceAny | BindingFlags.DeclaredOnly)
+                    .FirstOrDefault(m => m.Name == methodName && m.GetParameters().Length == 0);
+                method?.Invoke(instance, Array.Empty<object>());
+            }
+            catch
+            {
+                // Mejor esfuerzo: si no se pudo forzar la expansion, EnsureChildrenLoaded lo
+                // trata igual que "no cargo a tiempo" (la busqueda de arriba simplemente no
+                // encuentra el objeto y cae al flujo de "no encontrado").
+            }
+        }
+
+        /// <summary>
         /// Abre una nueva ventana de query en blanco, conectada con la misma conexion activa
         /// (o sin conectar si no hay ninguna), e inserta el texto dado.
         /// </summary>
@@ -507,6 +535,264 @@ namespace SsmsQuickTools.Ssms
             return ErrorHandler.Succeeded(frame.GetProperty((int)__VSFPROPID.VSFPROPID_DocView, out var docView))
                 ? docView
                 : null;
+        }
+
+        // Cantidad de niveles del arbol de Object Explorer que se recorren para encontrar la
+        // carpeta "Databases" y la base de datos buscada, y luego el objeto dentro de la base.
+        // No se conocen los nombres de las carpetas intermedias (estan localizados y no hay
+        // constantes publicas para ellos), asi que la busqueda no filtra por texto de carpeta:
+        // expande y recorre todo lo que encuentra hasta esta profundidad, comparando solo el
+        // nombre de cada nodo contra lo buscado. Ver docs/PLAN.md y specs/01 (riesgo: API de
+        // Object Explorer no documentada).
+        private const int LocateDatabaseMaxDepth = 2;
+        private const int LocateObjectMaxDepth = 4;
+
+        // La primera expansion de un nodo de servidor todavia no tocado por el usuario puede
+        // conectar de cero (handshake + autenticacion) antes de poblar "Databases"; se vio en
+        // pruebas manuales que 10s no alcanzaba ahi (si funcionaba al reintentar, ya con el
+        // arbol tibio). 30s da margen sin trabar la UI de forma indefinida si la conexion
+        // realmente esta caida (EnsureChildrenLoaded sigue bombeando el message loop mientras
+        // espera).
+        private const int EnsureChildrenLoadedTimeoutMs = 30000;
+
+        /// <summary>
+        /// Ubica y selecciona, en el arbol de Object Explorer, el objeto <paramref name="schema"/>.<paramref name="objectName"/>
+        /// (o, si no aparece calificado por esquema, <paramref name="objectName"/> solo -- caso de
+        /// los triggers, que en el arbol cuelgan de su tabla/vista padre sin prefijo de esquema)
+        /// dentro de la base <paramref name="database"/> del servidor de <paramref name="connectionInfo"/>.
+        /// Fuerza la expansion de las carpetas que el usuario todavia no desplego. Si Object
+        /// Explorer no tiene un nodo para ese servidor/base, o el objeto no aparece en el arbol ya
+        /// expandido, invoca <paramref name="onNotFound"/> (con el motivo puntual, para
+        /// diagnostico) sin modificar nada. No conecta ni busca en otro servidor o conexion
+        /// (Milestone/spec 01).
+        /// </summary>
+        public static void LocateObjectInObjectExplorer(UIConnectionInfo connectionInfo, string database, string schema, string objectName, Action<string> onNotFound)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var control = FindObjectExplorerControl(out var controlDiagnostic);
+            if (control == null)
+            {
+                onNotFound("No se encontro el panel de Object Explorer (¿esta abierto?). Ventanas recorridas: " + controlDiagnostic);
+                return;
+            }
+
+            var serverNode = FindImmediateChildByName(control.Nodes, connectionInfo.ServerName);
+            if (serverNode == null)
+            {
+                onNotFound("No se encontro un nodo para el servidor \"" + connectionInfo.ServerName + "\" en Object Explorer.");
+                return;
+            }
+
+            var databaseNode = FindNodeByName(serverNode, new[] { database }, LocateDatabaseMaxDepth);
+            if (databaseNode == null)
+            {
+                onNotFound("No se encontro la base de datos \"" + database + "\" bajo ese servidor en Object Explorer.");
+                return;
+            }
+
+            var candidateNames = new[] { schema + "." + objectName, objectName };
+            var objectNode = FindNodeByName(databaseNode, candidateNames, LocateObjectMaxDepth);
+            if (objectNode == null)
+            {
+                onNotFound("No se encontro el objeto dentro del arbol de esa base de datos (profundidad maxima explorada: " + LocateObjectMaxDepth + " niveles).");
+                return;
+            }
+
+            // La busqueda expande todas las carpetas que recorre en el camino (no solo la que
+            // termina llevando al objeto), asi que sin este paso el arbol queda con ramas de mas
+            // desplegadas (ej. Seguridad, Vistas, Programacion). Se colapsa todo menos la cadena
+            // de ancestros del objeto encontrado, igual que el "Locate" nativo de SSMS.
+            CollapseExceptAncestorsOf(control.Nodes, objectNode);
+
+            control.SelectedNode = objectNode;
+            objectNode.EnsureVisible();
+            control.Focus();
+        }
+
+        private static void CollapseExceptAncestorsOf(TreeNodeCollection roots, TreeNode target)
+        {
+            var ancestors = new HashSet<TreeNode>();
+            for (var node = target.Parent; node != null; node = node.Parent)
+            {
+                ancestors.Add(node);
+            }
+
+            foreach (TreeNode root in roots)
+            {
+                CollapseExceptAncestorsRecursive(root, ancestors);
+            }
+        }
+
+        private static void CollapseExceptAncestorsRecursive(TreeNode node, HashSet<TreeNode> ancestors)
+        {
+            foreach (TreeNode child in node.Nodes)
+            {
+                CollapseExceptAncestorsRecursive(child, ancestors);
+            }
+
+            if (ancestors.Contains(node))
+            {
+                node.Expand();
+            }
+            else
+            {
+                node.Collapse();
+            }
+        }
+
+        // Nombre completo de Microsoft.SqlServer.Management.SqlStudio.Explorer.ObjectExplorerToolWindow,
+        // el ToolWindowPane que aloja el ObjectExplorerControl en SSMS 22 (confirmado por prueba
+        // manual contra SSMS 22.6.11806.211: el DocView de la tool window de Object Explorer no
+        // es el control en si). Se identifica por nombre de tipo y se lee su propiedad publica
+        // "Control" por reflection -- no por referencia directa a esa DLL -- porque depende de
+        // Microsoft.VisualStudio.Shell.15.0 v18.0 (shell VS2022 de SSMS 22), mas nueva que el
+        // Microsoft.VisualStudio.SDK 17.11 de este proyecto (referenciarla rompe la compilacion,
+        // CS1705). Ver lib/ssms22.6/README.md.
+        private const string ObjectExplorerToolWindowTypeName = "Microsoft.SqlServer.Management.SqlStudio.Explorer.ObjectExplorerToolWindow";
+
+        /// <summary>
+        /// Instancia activa del arbol de Object Explorer (como <see cref="TreeView"/> publico; la
+        /// clase real <c>ObjectExplorerControl</c> es interna a ObjectExplorer.dll), buscando
+        /// entre todas las ventanas de herramientas registradas -- no se conoce el GUID publico de
+        /// la ventana de Object Explorer de SSMS.
+        /// </summary>
+        private static TreeView FindObjectExplorerControl() => FindObjectExplorerControl(out _);
+
+        /// <summary>
+        /// Igual que <see cref="FindObjectExplorerControl()"/>, pero ademas devuelve en
+        /// <paramref name="diagnostic"/> el caption de cada tool window recorrida cuando no se
+        /// encuentra el panel, para diagnosticar (ej. panel cerrado, o no registrado todavia).
+        /// </summary>
+        private static TreeView FindObjectExplorerControl(out string diagnostic)
+        {
+            var seen = new System.Text.StringBuilder();
+
+            var uiShell = ServiceProvider.GlobalProvider.GetService(typeof(SVsUIShell)) as IVsUIShell;
+            if (uiShell == null)
+            {
+                diagnostic = "No se pudo obtener SVsUIShell.";
+                return null;
+            }
+
+            if (ErrorHandler.Failed(uiShell.GetToolWindowEnum(out var frames)) || frames == null)
+            {
+                diagnostic = "GetToolWindowEnum fallo o devolvio null.";
+                return null;
+            }
+
+            var fetched = new IVsWindowFrame[1];
+            while (frames.Next(1, fetched, out var count) == VSConstants.S_OK && count == 1)
+            {
+                var frame = fetched[0];
+                var caption = ErrorHandler.Succeeded(frame.GetProperty((int)__VSFPROPID.VSFPROPID_Caption, out var captionObj))
+                    ? captionObj as string
+                    : null;
+                seen.Append("[").Append(caption).Append("] ");
+
+                if (ErrorHandler.Failed(frame.GetProperty((int)__VSFPROPID.VSFPROPID_DocView, out var docView)))
+                {
+                    continue;
+                }
+
+                if (docView != null && docView.GetType().FullName == ObjectExplorerToolWindowTypeName
+                    && TryGetInheritedPropertyValue(docView, docView.GetType(), "Control", out TreeView control))
+                {
+                    diagnostic = null;
+                    return control;
+                }
+            }
+
+            diagnostic = seen.ToString();
+            return null;
+        }
+
+        private static TreeNode FindImmediateChildByName(TreeNodeCollection nodes, string name)
+        {
+            foreach (TreeNode node in nodes)
+            {
+                if (string.Equals(NodeName(node), name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return node;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Busqueda en anchura por debajo de <paramref name="root"/> (sin incluirlo), hasta
+        /// <paramref name="maxDepth"/> niveles, expandiendo cada carpeta lazy que todavia no fue
+        /// cargada (<see cref="EnsureChildrenLoaded"/>). Devuelve el primer nodo cuyo nombre
+        /// coincide (sin distinguir mayusculas) con alguno de <paramref name="candidateNames"/>.
+        /// </summary>
+        private static TreeNode FindNodeByName(TreeNode root, string[] candidateNames, int maxDepth)
+        {
+            var frontier = new Queue<KeyValuePair<TreeNode, int>>();
+            frontier.Enqueue(new KeyValuePair<TreeNode, int>(root, 0));
+
+            while (frontier.Count > 0)
+            {
+                var current = frontier.Dequeue();
+                var node = current.Key;
+                var depth = current.Value;
+
+                if (depth > 0)
+                {
+                    var name = NodeName(node);
+                    foreach (var candidate in candidateNames)
+                    {
+                        if (string.Equals(name, candidate, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return node;
+                        }
+                    }
+                }
+
+                if (depth >= maxDepth)
+                {
+                    continue;
+                }
+
+                EnsureChildrenLoaded(node);
+                foreach (TreeNode child in node.Nodes)
+                {
+                    frontier.Enqueue(new KeyValuePair<TreeNode, int>(child, depth + 1));
+                }
+            }
+
+            return null;
+        }
+
+        // "NodeName" es la propiedad publica de ExplorerHierarchyNode (clase interna) con el
+        // nombre "crudo" del objeto (sin el icono/estado que puede llevar DisplayName); TreeNode
+        // no la declara, asi que se lee por reflection y se cae a Text (siempre disponible, es
+        // publica en TreeNode) si el nodo no es de ese tipo o la propiedad no esta.
+        private static string NodeName(TreeNode node) =>
+            TryGetInheritedPropertyValue(node, node.GetType(), "NodeName", out string name) ? name : node.Text;
+
+        /// <summary>
+        /// Fuerza la carga de los hijos de un nodo todavia no expandido por el usuario
+        /// (metodo publico <c>EnumerateChildren()</c> de ExplorerHierarchyNode, clase interna),
+        /// y espera -bombeando el message loop, dado que la carga corre en otro hilo y notifica
+        /// de vuelta al hilo de UI a que termine- con un limite de tiempo para no colgar la UI si
+        /// algo se queda esperando una conexion caida.
+        /// </summary>
+        private static void EnsureChildrenLoaded(TreeNode node)
+        {
+            if (!TryGetInheritedPropertyValue(node, node.GetType(), "ChildrenEnumerated", out bool alreadyLoaded) || alreadyLoaded)
+            {
+                return;
+            }
+
+            InvokeParameterlessInheritedMethod(node, node.GetType(), "EnumerateChildren");
+
+            var deadline = Environment.TickCount + EnsureChildrenLoadedTimeoutMs;
+            while (TryGetInheritedPropertyValue(node, node.GetType(), "ChildrenEnumerated", out bool loaded) && !loaded && Environment.TickCount < deadline)
+            {
+                Application.DoEvents();
+                System.Threading.Thread.Sleep(15);
+            }
         }
 
         /// <summary>

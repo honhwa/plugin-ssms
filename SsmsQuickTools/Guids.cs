@@ -45,5 +45,8 @@ namespace SsmsQuickTools
 
         // Comando "Expandir token" (menu Quick Tools) - plan C de Auto Replacement
         public const uint ExpandTokenCommand = 0x0202;
+
+        // Comando "Locate in Object Explorer" (menu Quick Tools > Query)
+        public const uint LocateObjectCommand = 0x0203;
     }
 }

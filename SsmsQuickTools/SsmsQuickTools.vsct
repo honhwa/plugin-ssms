@@ -28,6 +28,24 @@
           <CommandName>QuickTools</CommandName>
         </Strings>
       </Menu>
+
+      <!-- Submenus dentro de Quick Tools que agrupan comandos por sobre que actuan: Query
+           (editor de queries) y Results Grid (grid de resultados). -->
+      <Menu guid="guidQuickToolsCmdSet" id="QueryMenu" priority="0x0100" type="Menu">
+        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" />
+        <Strings>
+          <ButtonText>Query</ButtonText>
+          <CommandName>Query</CommandName>
+        </Strings>
+      </Menu>
+
+      <Menu guid="guidQuickToolsCmdSet" id="ResultsGridMenu" priority="0x0200" type="Menu">
+        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" />
+        <Strings>
+          <ButtonText>Results Grid</ButtonText>
+          <CommandName>ResultsGrid</CommandName>
+        </Strings>
+      </Menu>
     </Menus>
 
     <Groups>
@@ -35,22 +53,30 @@
         <Parent guid="guidQuickToolsCmdSet" id="QuickConnectToolbar" />
       </Group>
 
-      <!-- Grupo plano dentro del menu Quick Tools: destino canonico de todos los comandos. -->
+      <!-- Grupo dentro del menu Quick Tools: contiene los submenus Query y Results Grid. -->
       <Group guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" priority="0x0000">
         <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenu" />
+      </Group>
+
+      <Group guid="guidQuickToolsCmdSet" id="QueryMenuGroup" priority="0x0000">
+        <Parent guid="guidQuickToolsCmdSet" id="QueryMenu" />
+      </Group>
+
+      <Group guid="guidQuickToolsCmdSet" id="ResultsGridMenuGroup" priority="0x0000">
+        <Parent guid="guidQuickToolsCmdSet" id="ResultsGridMenu" />
       </Group>
 
     </Groups>
 
     <Buttons>
-      <Button guid="guidQuickToolsCmdSet" id="cmdidScriptDataCommand" priority="0x0100" type="Button">
-        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" />
+      <Button guid="guidQuickToolsCmdSet" id="cmdidScriptDataCommand" priority="0x0110" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="ResultsGridMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="Copy" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
-          <ButtonText>Copiar resultado como script SELECT</ButtonText>
-          <MenuText>Copiar resultado como script SELECT</MenuText>
-          <ToolTipText>Genera un SELECT con los datos del grid de resultados y lo copia al portapapeles</ToolTipText>
+          <ButtonText>Copy Selection as Script SELECT</ButtonText>
+          <MenuText>Copy Selection as Script SELECT</MenuText>
+          <ToolTipText>Generates a SELECT script from the result grid data and copies it to the clipboard</ToolTipText>
         </Strings>
       </Button>
 
@@ -58,25 +84,25 @@
            codigo, pero el editor de query de SSMS arma su popup a mano y no fusiona grupos de
            terceros pese a aparecer como "customizable" en Personalizar (confirmado empiricamente
            contra SSMS 22.6). Quedan en Quick Tools + atajo, igual que ScriptData (ver docs/PLAN.md M3). -->
-      <Button guid="guidEditorContextCmdSet" id="cmdidGenerateCreateCommand" priority="0x0110" type="Button">
-        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" />
+      <Button guid="guidEditorContextCmdSet" id="cmdidGenerateCreateCommand" priority="0x0100" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="QueryMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="Add" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
         <Strings>
-          <ButtonText>Generar CREATE</ButtonText>
-          <MenuText>Generar CREATE</MenuText>
+          <ButtonText>Script Object as CREATE</ButtonText>
+          <MenuText>Script Object as CREATE</MenuText>
         </Strings>
       </Button>
 
-      <Button guid="guidEditorContextCmdSet" id="cmdidGenerateAlterCommand" priority="0x0111" type="Button">
-        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" />
+      <Button guid="guidEditorContextCmdSet" id="cmdidGenerateAlterCommand" priority="0x0110" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="QueryMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="Rename" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
         <Strings>
-          <ButtonText>Generar ALTER</ButtonText>
-          <MenuText>Generar ALTER</MenuText>
+          <ButtonText>Script Object as ALTER</ButtonText>
+          <MenuText>Script Object as ALTER</MenuText>
         </Strings>
       </Button>
 
@@ -94,14 +120,14 @@
            verificacion empirica (2026-09-10) contra SSMS 22.6, mismo resultado que M3 con el
            editor: SSMS no fusiona grupos de terceros en ese menu tampoco. Queda en Quick Tools +
            atajo, igual que ScriptData y Generar CREATE/ALTER. -->
-      <Button guid="guidQuickToolsCmdSet" id="cmdidCopyXmlSpreadsheetCommand" priority="0x0120" type="Button">
-        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" />
+      <Button guid="guidQuickToolsCmdSet" id="cmdidCopyXmlSpreadsheetCommand" priority="0x0100" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="ResultsGridMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="Copy" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
-          <ButtonText>Copiar selección como XML Spreadsheet</ButtonText>
-          <MenuText>Copiar selección como XML Spreadsheet</MenuText>
-          <ToolTipText>Copia la selección del grid de resultados al portapapeles en formato XML Spreadsheet (Excel), preservando tipo y precisión</ToolTipText>
+          <ButtonText>Copy Selection as SpreadSheet (Excel)</ButtonText>
+          <MenuText>Copy Selection as SpreadSheet (Excel)</MenuText>
+          <ToolTipText>Copies the result grid selection to the clipboard as an Excel-compatible XML Spreadsheet fragment, preserving type and precision</ToolTipText>
         </Strings>
       </Button>
 
@@ -109,14 +135,28 @@
            autoreplacement.xml. Se entrega tambien como filtro de comandos sobre Enter en el
            editor; este comando de menu+atajo es el plan C que garantiza que la funcion siga
            siendo usable si ese enganche deja de funcionar en una version futura de SSMS. -->
-      <Button guid="guidQuickToolsCmdSet" id="cmdidExpandTokenCommand" priority="0x0130" type="Button">
-        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" />
+      <Button guid="guidQuickToolsCmdSet" id="cmdidExpandTokenCommand" priority="0x0120" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="QueryMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="Snippet" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
-          <ButtonText>Expandir token</ButtonText>
-          <MenuText>Expandir token</MenuText>
-          <ToolTipText>Expande el token pegado al cursor segun autoreplacement.xml</ToolTipText>
+          <ButtonText>Autoreplacement</ButtonText>
+          <MenuText>Autoreplacement</MenuText>
+          <ToolTipText>Expands the token glued to the cursor according to autoreplacement.xml</ToolTipText>
+        </Strings>
+      </Button>
+
+      <!-- Locate in Object Explorer (spec 01): ubica y selecciona en el arbol de Object
+           Explorer el objeto seleccionado o bajo el cursor en la query activa. -->
+      <Button guid="guidQuickToolsCmdSet" id="cmdidLocateObjectCommand" priority="0x0130" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="QueryMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="GoToDefinition" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>Locate in Object Explorer</ButtonText>
+          <MenuText>Locate in Object Explorer</MenuText>
+          <ToolTipText>Locates and selects the object under the cursor in the Object Explorer tree</ToolTipText>
         </Strings>
       </Button>
     </Buttons>
@@ -145,6 +185,7 @@
     <KeyBinding guid="guidEditorContextCmdSet" id="cmdidGenerateAlterCommand" editor="guidVSStd97" key1="K" mod1="Control" key2="3" mod2="Control" />
     <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidCopyXmlSpreadsheetCommand" editor="guidVSStd97" key1="K" mod1="Control" key2="4" mod2="Control" />
     <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidExpandTokenCommand" editor="guidVSStd97" key1="K" mod1="Control" key2="5" mod2="Control" />
+    <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidLocateObjectCommand" editor="guidVSStd97" key1="K" mod1="Control" key2="6" mod2="Control" />
   </KeyBindings>
 
   <Symbols>
@@ -155,6 +196,10 @@
       <IDSymbol name="QuickConnectToolbarGroup" value="0x1001" />
       <IDSymbol name="QuickToolsMenu" value="0x1100" />
       <IDSymbol name="QuickToolsMenuGroup" value="0x1101" />
+      <IDSymbol name="QueryMenu" value="0x1110" />
+      <IDSymbol name="QueryMenuGroup" value="0x1111" />
+      <IDSymbol name="ResultsGridMenu" value="0x1120" />
+      <IDSymbol name="ResultsGridMenuGroup" value="0x1121" />
 
       <IDSymbol name="cmdidConnectionCombo" value="0x0100" />
       <IDSymbol name="cmdidConnectionComboGetList" value="0x0101" />
@@ -162,6 +207,7 @@
       <IDSymbol name="cmdidScriptDataCommand" value="0x0200" />
       <IDSymbol name="cmdidCopyXmlSpreadsheetCommand" value="0x0201" />
       <IDSymbol name="cmdidExpandTokenCommand" value="0x0202" />
+      <IDSymbol name="cmdidLocateObjectCommand" value="0x0203" />
     </GuidSymbol>
 
     <GuidSymbol name="guidEditorContextCmdSet" value="{d71b3e2f-929e-4f15-9652-e299c6a4b288}">
