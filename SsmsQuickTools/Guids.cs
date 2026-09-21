@@ -29,6 +29,7 @@ namespace SsmsQuickTools
         // Menu top-level "Quick Tools" en la barra principal: destino canonico de comandos.
         public const uint QuickToolsMenu = 0x1100;
         public const uint QuickToolsMenuGroup = 0x1101;
+        public const uint AboutMenuGroup = 0x1102;
 
         public const uint ConnectionCombo = 0x0100;
         public const uint ConnectionComboGetList = 0x0101;
@@ -46,6 +47,8 @@ namespace SsmsQuickTools
         // Comando "Expandir token" (menu Quick Tools) - plan C de Auto Replacement
         public const uint ExpandTokenCommand = 0x0202;
 
+        // Comando "About" (menu Quick Tools)
+        public const uint AboutCommand = 0x0203;
         // Comando "Locate in Object Explorer" (menu Quick Tools > Query)
         public const uint LocateObjectCommand = 0x0203;
     }

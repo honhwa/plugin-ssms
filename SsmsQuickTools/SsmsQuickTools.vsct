@@ -66,6 +66,11 @@
         <Parent guid="guidQuickToolsCmdSet" id="ResultsGridMenu" />
       </Group>
 
+      <!-- Grupo propio para About, separado de los submenus Query/Results Grid por un divisor. -->
+      <Group guid="guidQuickToolsCmdSet" id="AboutMenuGroup" priority="0x0900">
+        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenu" />
+      </Group>
+
     </Groups>
 
     <Buttons>
@@ -145,6 +150,15 @@
           <ToolTipText>Expands the token glued to the cursor according to autoreplacement.xml</ToolTipText>
         </Strings>
       </Button>
+      <!-- About: version y fecha de build, para saber que .vsix esta instalado durante pruebas. -->
+      <Button guid="guidQuickToolsCmdSet" id="cmdidAboutCommand" priority="0x0000" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="AboutMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="StatusInformation" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>About</ButtonText>
+          <MenuText>About</MenuText>
+          <ToolTipText>Muestra la version y fecha de build de SsmsQuickTools</ToolTipText>
 
       <!-- Locate in Object Explorer (spec 01): ubica y selecciona en el arbol de Object
            Explorer el objeto seleccionado o bajo el cursor en la query activa. -->
@@ -196,6 +210,7 @@
       <IDSymbol name="QuickConnectToolbarGroup" value="0x1001" />
       <IDSymbol name="QuickToolsMenu" value="0x1100" />
       <IDSymbol name="QuickToolsMenuGroup" value="0x1101" />
+      <IDSymbol name="AboutMenuGroup" value="0x1102" />
       <IDSymbol name="QueryMenu" value="0x1110" />
       <IDSymbol name="QueryMenuGroup" value="0x1111" />
       <IDSymbol name="ResultsGridMenu" value="0x1120" />
@@ -207,6 +222,7 @@
       <IDSymbol name="cmdidScriptDataCommand" value="0x0200" />
       <IDSymbol name="cmdidCopyXmlSpreadsheetCommand" value="0x0201" />
       <IDSymbol name="cmdidExpandTokenCommand" value="0x0202" />
+      <IDSymbol name="cmdidAboutCommand" value="0x0203" />
       <IDSymbol name="cmdidLocateObjectCommand" value="0x0203" />
     </GuidSymbol>
 
