@@ -478,6 +478,59 @@ Arquitectura (`Features/AutoReplacement/`):
 
 Confirmado por prueba manual contra SSMS 22.6.11806.211.
 
+## Milestone 7 — Locate in Object Explorer
+
+**Estado: en progreso (v0.2.9, spec `specs/01-locate-object-in-object-explorer.md`, branch
+`spec-01-locate-object-in-object-explorer`).** Comando "Locate in Object Explorer" en Quick
+Tools > Query (`Ctrl+K, Ctrl+6`): ubica y selecciona, en el árbol de Object Explorer, el objeto
+(tabla/vista/procedimiento/función/trigger) seleccionado o bajo el cursor en la query activa.
+Reusa el mismo origen de texto y `ObjectNameParser` que Script CREATE/ALTER (M3).
+
+Es la pieza de mayor riesgo hasta ahora: a diferencia de M1-M6 (que acceden a APIs internas ya
+usadas por `SsmsHost`), esta es la primera vez que se navega el árbol de Object Explorer en sí,
+sin ningún precedente en el proyecto y sin API pública. Historial de hallazgos por reflection
+contra una instalación real de SSMS 22.6.11806.211 (no había forma de probarlo sin instalar y
+ejecutar, iterando en varias rondas):
+
+1. **`ObjectExplorer.dll`** (`Common7\IDE`, copiada a `lib/ssms22.6/`) contiene el control real
+   del árbol: `Microsoft.SqlServer.Management.UI.VSIntegration.ObjectExplorer.ObjectExplorerControl`
+   (un `System.Windows.Forms.TreeView` real por herencia) y `ExplorerHierarchyNode` (un
+   `TreeNode` real). **Ambas clases son internas** al ensamblado — no se pueden nombrar desde el
+   proyecto — pero sus miembros propios (`NodeName`, `ChildrenEnumerated`, `EnumerateChildren()`)
+   son públicos, así que se usan por reflection sobre instancias tratadas como `TreeView`/
+   `TreeNode` público.
+2. **El `DocView` de la tool window de Object Explorer no es el control**, sino
+   `Microsoft.SqlServer.Management.SqlStudio.Explorer.ObjectExplorerToolWindow` — el
+   `ToolWindowPane` que lo aloja en el shell VS2022 de SSMS 22 (SSMS 22 no es el shell legado de
+   versiones anteriores). Ese pane expone el control vía su propiedad pública `Control`.
+   Encontrado recién en la segunda ronda, agregando diagnóstico temporal al mensaje de "no
+   encontrado" que listaba caption+tipo real de cada tool window recorrida — la única forma de
+   ver esto fue con el usuario probando contra su SSMS real.
+3. **Esa DLL no se referencia directamente**: depende de `Microsoft.VisualStudio.Shell.15.0`
+   v18.0, más nueva que el `Microsoft.VisualStudio.SDK` 17.11 que usa este proyecto (referenciarla
+   rompe la compilación, `CS1705`). Se lee por reflection (nombre de tipo + propiedad `Control`),
+   igual criterio de aislamiento que el resto de `SsmsHost.cs`.
+4. **No se encontraron nombres localizados de carpetas** ("Databases"/"Tables"/etc, ni sus
+   equivalentes en español) ni el GUID público de la tool window de Object Explorer. El diseño
+   evita depender de ambos: `SsmsHost.FindObjectExplorerControl()` busca la tool window recorriendo
+   *todas* las registradas (`IVsUIShell.GetToolWindowEnum`) y comparando el nombre de tipo del
+   `DocView`; `FindNodeByName` hace una búsqueda en anchura acotada por profundidad (2 niveles para
+   la base de datos, 4 más para el objeto) comparando solo el nombre de cada nodo contra lo
+   buscado, expandiendo con `EnumerateChildren()` donde haga falta.
+5. **`CollapseExceptAncestorsOf`**: la búsqueda de arriba expande de más (todas las carpetas que
+   recorre en el camino, no solo la que termina llevando al objeto). Se colapsa todo menos la
+   cadena de ancestros del nodo encontrado antes de seleccionarlo, imitando el "Locate" nativo de
+   SSMS. Confirmado por el usuario que funciona (v0.2.8).
+
+**Pendiente/bloqueado:** con el árbol de Object Explorer totalmente colapsado en frío (conexión
+nunca tocada por el usuario), el comando sigue sin encontrar el objeto incluso tras subir el
+timeout de espera de expansión de 10s a 30s (`EnsureChildrenLoadedTimeoutMs`, v0.2.9). Hipótesis
+sin confirmar: `ChildrenEnumerated` puede volverse `true` con un placeholder de "Conectando..."
+antes de tener los hijos reales, o `EnumerateChildren()` no dispara nada útil la primera vez
+sobre un nodo de servidor nunca tocado. Retomar mostrando/logueando la cantidad de hijos tras la
+espera, o cambiando el poll de `ChildrenEnumerated` por el evento `FinishedExpanding`/
+`StateChanged` de la clase.
+
 ## Verificación
 
 Todo se verifica contra SSMS real; no hay pruebas automatizadas de la capa de UI. Verificar como mínimo en **22.6.0** (piso soportado) y en la versión más reciente disponible, ya que el `GridReader` por reflection es lo que más probablemente difiera entre ambas.
@@ -500,6 +553,11 @@ Todo se verifica contra SSMS real; no hay pruebas automatizadas de la capa de UI
 - Prueba de regresión de riesgo: reiniciar SSMS varias veces y confirmar que no se degrada el arranque ni aparecen errores en `%AppData%\Microsoft\SSMS\ActivityLog.xml` (arrancar con `Ssms.exe /log` para generarlo).
 - **M6 (Auto Replacement)**: **Hecho** (2026-09-15, contra SSMS 22.6.11806.211, v0.2.0): probado
   manualmente por el usuario tras reinstalar el VSIX y reiniciar SSMS por completo — funciona bien.
+- **M7 (Locate in Object Explorer)**: **Parcial, en progreso** (2026-09-20/21, contra SSMS
+  22.6.11806.211, v0.2.7-v0.2.9): encuentra el panel y localiza/selecciona el objeto cuando el
+  árbol ya tuvo alguna expansión previa (tibio); con el árbol totalmente colapsado en frío
+  (conexión de Object Explorer nunca tocada), sigue fallando — ver Milestone 7 para el detalle y
+  la hipótesis pendiente de confirmar.
 
 ## Unit tests
 
