@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
+using SsmsQuickTools.Features.About;
 using SsmsQuickTools.Features.AutoReplacement;
 using SsmsQuickTools.Features.CopyXmlSpreadsheet;
 using SsmsQuickTools.Features.QuickConnect;
@@ -45,6 +46,8 @@ namespace SsmsQuickTools
             var autoReplacementCatalog = new AutoReplacementCatalog();
             new AutoReplacementService(autoReplacementCatalog);
             new ExpandTokenCommand(this, commandService, autoReplacementCatalog).Register();
+
+            new AboutCommand(this, commandService).Register();
         }
     }
 }

@@ -437,6 +437,20 @@ Se probó primero con una red de seguridad temporal (`<CommandPlacements>` dupli
 bloque junto con `ToolsMenuGroup` y su `IDSymbol`. Los cuatro comandos viven ahora únicamente en
 `QuickToolsMenuGroup`.
 
+Se agregó además un comando **About** (grupo propio `AboutMenuGroup`, separado por divisor de los
+submenús Query/Results Grid) que muestra versión y fecha de build. Como el `source.extension.vsixmanifest`
+es un item `None` (nada lo lee en runtime) y el proyecto no tiene `AssemblyInfo.cs`, se agregó un target
+MSBuild (`GenerateBuildInfo` en `SsmsQuickTools.csproj`) que lee `Identity/@Version` del manifest con
+`XmlPeek` y escribe `BuildInfo.g.cs` con esa versión y la fecha real de compilación (`dd/MM/yyyy`),
+compilado en cada build junto con el resto de las fuentes.
+
+Además, el target `BumpVsixVersion` (corre antes que `GenerateBuildInfo`) sube automaticamente el último
+número de `Identity/@Version` en cada build real (reescribe el `.vsixmanifest` con `XmlPoke`), para que
+SSMS/VS nunca rechacen la reinstalación por versión ya instalada. Se salta en design-time builds del IDE
+(`Condition` sobre `$(DesignTimeBuild)`/`$(BuildingProject)`) para no gastar versiones solo por abrir un
+archivo. Efecto colateral: el `.vsixmanifest` queda modificado en el working tree después de cada build;
+hay que revisarlo/commitearlo como cualquier otro cambio versionado.
+
 ## Milestone 6 — Auto Replacement
 
 **Estado: funcionando (2026-09-15, v0.2.0, confirmado contra SSMS 22.6.11806.211 real).** Es la

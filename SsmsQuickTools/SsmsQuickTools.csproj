@@ -109,6 +109,49 @@
     </Content>
   </ItemGroup>
 
+  <!-- Sube el ultimo numero de Identity/@Version en source.extension.vsixmanifest en cada build
+       real (no en design-time builds del IDE, para no gastar versiones solo por abrir el .cs en
+       el editor). Necesario porque SSMS/VS rechazan reinstalar un .vsix con la misma version que
+       la ya instalada. -->
+  <Target Name="BumpVsixVersion" BeforeTargets="BeforeCompile"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(BuildingProject)' == 'true'">
+    <XmlPeek XmlInputPath="source.extension.vsixmanifest"
+             Query="/vsx:PackageManifest/vsx:Metadata/vsx:Identity/@Version"
+             Namespaces="&lt;Namespace Prefix='vsx' Uri='http://schemas.microsoft.com/developer/vsx-schema/2011' /&gt;">
+      <Output TaskParameter="Result" PropertyName="_CurrentVsixVersion" />
+    </XmlPeek>
+    <PropertyGroup>
+      <_VersionSplitAt>$(_CurrentVsixVersion.LastIndexOf('.'))</_VersionSplitAt>
+      <_VersionPrefix>$(_CurrentVsixVersion.Substring(0, $(_VersionSplitAt)))</_VersionPrefix>
+      <_VersionLast>$(_CurrentVsixVersion.Substring($([MSBuild]::Add($(_VersionSplitAt), 1))))</_VersionLast>
+      <_VsixVersion>$(_VersionPrefix).$([MSBuild]::Add($(_VersionLast), 1))</_VsixVersion>
+    </PropertyGroup>
+    <XmlPoke XmlInputPath="source.extension.vsixmanifest"
+             Query="/vsx:PackageManifest/vsx:Metadata/vsx:Identity/@Version"
+             Namespaces="&lt;Namespace Prefix='vsx' Uri='http://schemas.microsoft.com/developer/vsx-schema/2011' /&gt;"
+             Value="$(_VsixVersion)" />
+  </Target>
+
+  <!-- Genera BuildInfo.g.cs con la version (ya subida por BumpVsixVersion) y la fecha de
+       compilacion, para el comando About (Features/About). El manifest es un item None (nada lo
+       lee en runtime), asi que se copia su Version a una constante embebida en cada build. -->
+  <Target Name="GenerateBuildInfo" BeforeTargets="BeforeCompile" DependsOnTargets="BumpVsixVersion">
+    <XmlPeek XmlInputPath="source.extension.vsixmanifest"
+             Query="/vsx:PackageManifest/vsx:Metadata/vsx:Identity/@Version"
+             Namespaces="&lt;Namespace Prefix='vsx' Uri='http://schemas.microsoft.com/developer/vsx-schema/2011' /&gt;">
+      <Output TaskParameter="Result" PropertyName="_VsixVersion" />
+    </XmlPeek>
+    <PropertyGroup>
+      <_BuildInfoFile>$(IntermediateOutputPath)BuildInfo.g.cs</_BuildInfoFile>
+      <_BuildDate>$([System.DateTime]::Now.ToString("dd/MM/yyyy"))</_BuildDate>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_BuildInfoFile)" Overwrite="true" WriteOnlyWhenDifferent="true"
+      Lines="namespace SsmsQuickTools { internal static class BuildInfo { public const string Version = &quot;$(_VsixVersion)&quot;%3B public const string Date = &quot;$(_BuildDate)&quot;%3B } }" />
+    <ItemGroup>
+      <Compile Include="$(_BuildInfoFile)" />
+    </ItemGroup>
+  </Target>
+
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 
   <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="'$(VSToolsPath)' != ''" />
