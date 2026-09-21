@@ -159,6 +159,18 @@
           <ButtonText>About</ButtonText>
           <MenuText>About</MenuText>
           <ToolTipText>Muestra la version y fecha de build de SsmsQuickTools</ToolTipText>
+
+      <!-- Locate in Object Explorer (spec 01): ubica y selecciona en el arbol de Object
+           Explorer el objeto seleccionado o bajo el cursor en la query activa. -->
+      <Button guid="guidQuickToolsCmdSet" id="cmdidLocateObjectCommand" priority="0x0130" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="QueryMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="GoToDefinition" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>Locate in Object Explorer</ButtonText>
+          <MenuText>Locate in Object Explorer</MenuText>
+          <ToolTipText>Locates and selects the object under the cursor in the Object Explorer tree</ToolTipText>
         </Strings>
       </Button>
     </Buttons>
@@ -187,6 +199,7 @@
     <KeyBinding guid="guidEditorContextCmdSet" id="cmdidGenerateAlterCommand" editor="guidVSStd97" key1="K" mod1="Control" key2="3" mod2="Control" />
     <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidCopyXmlSpreadsheetCommand" editor="guidVSStd97" key1="K" mod1="Control" key2="4" mod2="Control" />
     <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidExpandTokenCommand" editor="guidVSStd97" key1="K" mod1="Control" key2="5" mod2="Control" />
+    <KeyBinding guid="guidQuickToolsCmdSet" id="cmdidLocateObjectCommand" editor="guidVSStd97" key1="K" mod1="Control" key2="6" mod2="Control" />
   </KeyBindings>
 
   <Symbols>
@@ -210,6 +223,7 @@
       <IDSymbol name="cmdidCopyXmlSpreadsheetCommand" value="0x0201" />
       <IDSymbol name="cmdidExpandTokenCommand" value="0x0202" />
       <IDSymbol name="cmdidAboutCommand" value="0x0203" />
+      <IDSymbol name="cmdidLocateObjectCommand" value="0x0203" />
     </GuidSymbol>
 
     <GuidSymbol name="guidEditorContextCmdSet" value="{d71b3e2f-929e-4f15-9652-e299c6a4b288}">

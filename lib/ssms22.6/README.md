@@ -19,6 +19,20 @@ Archivos:
   `Microsoft.SqlServer.Management.UI.VSIntegration.ServiceCache`, usados para conexión activa y
   creación de query windows (Milestones 1 y 3).
 - `SqlWorkbench.Interfaces.dll` — `UIConnectionInfo` y tipos relacionados.
+- `ObjectExplorer.dll` (de `Common7\IDE`) — contiene
+  `Microsoft.SqlServer.Management.UI.VSIntegration.ObjectExplorer.ObjectExplorerControl` y
+  `ExplorerHierarchyNode`, usados por reflection/tipado directo en
+  `SsmsHost.LocateObjectInObjectExplorer` (spec 01, "Locate in Object Explorer"). Sin API
+  publica documentada; ver el comentario en `SsmsHost.cs` para el detalle de que se verifico
+  y que quedo pendiente de prueba manual.
+  NOTA: el DocView de la tool window de Object Explorer en SSMS 22 no es este control
+  directamente sino `Microsoft.SqlServer.Management.SqlStudio.Explorer.ObjectExplorerToolWindow`
+  (en `Extensions\Application\Microsoft.SqlServer.Management.SqlStudio.Explorer.dll`), que lo
+  expone via su propiedad publica `Control`. Esa DLL no esta copiada aca ni referenciada: depende
+  de `Microsoft.VisualStudio.Shell.15.0` v18.0 (shell VS2022 de SSMS 22), mas nueva que el
+  `Microsoft.VisualStudio.SDK` 17.11 que usa este proyecto, asi que referenciarla directamente
+  rompe la compilacion (CS1705). `SsmsHost.FindObjectExplorerControl` la lee por reflection
+  (nombre de tipo + `Control` como propiedad heredada) para no necesitar esa referencia.
 - `Microsoft.Data.SqlClient.dll` — `SqlConnection`/`SqlConnectionStringBuilder`, usados en
   `Ssms/SsmsHost.cs`, `Features/ScriptObject/ObjectScripter.cs` y
   `Features/QuickConnect/QuickConnectCommands.cs`. Referenciada acá (no como `PackageReference`)

@@ -49,5 +49,7 @@ namespace SsmsQuickTools
 
         // Comando "About" (menu Quick Tools)
         public const uint AboutCommand = 0x0203;
+        // Comando "Locate in Object Explorer" (menu Quick Tools > Query)
+        public const uint LocateObjectCommand = 0x0203;
     }
 }

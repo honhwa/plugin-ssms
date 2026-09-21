@@ -82,6 +82,13 @@
       <Private>false</Private>
       <SpecificVersion>false</SpecificVersion>
     </Reference>
+    <!-- ObjectExplorer.dll: arbol de Object Explorer (ObjectExplorerControl, ExplorerHierarchyNode),
+         usado por SsmsHost.LocateObjectInObjectExplorer (spec 01). -->
+    <Reference Include="ObjectExplorer">
+      <HintPath>..\lib\ssms22.6\ObjectExplorer.dll</HintPath>
+      <Private>false</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
     <Reference Include="System.Data" />
     <Reference Include="System.Design" />
     <Reference Include="System.Windows.Forms" />
