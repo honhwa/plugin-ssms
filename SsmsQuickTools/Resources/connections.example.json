@@ -1,6 +1,7 @@
 {
   "connections": [
-    { "name": "LENOVOJOSE\\DEV01.Figuritas", "server": "LENOVOJOSE\\DEV01", "database": "Figuritas" },
-    { "name": "LENOVOJOSE\\DEV01.ClinicaTurnos", "server": "LENOVOJOSE\\DEV01", "database": "ClinicaTurnos" }
+    { "name": "LENOVOJOSE\\DEV01.Figuritas", "server": "LENOVOJOSE\\DEV01", "database": "Figuritas", "authentication": "windows" },
+    { "name": "LENOVOJOSE\\DEV01.ClinicaTurnos", "server": "LENOVOJOSE\\DEV01", "database": "ClinicaTurnos", "authentication": "windows" },
+    { "name": "PROD.Ventas (sa)", "server": "sql-prod01\\INST1", "database": "Ventas", "authentication": "sql", "user": "sa" }
   ]
 }

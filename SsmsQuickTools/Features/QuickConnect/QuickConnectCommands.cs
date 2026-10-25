@@ -1,10 +1,8 @@
 using System;
 using System.ComponentModel.Design;
-using System.Data;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
-using Microsoft.SqlServer.Management.Smo.RegSvrEnum;
 using Microsoft.VisualStudio.Shell;
 using SsmsQuickTools.Ssms;
 
@@ -13,15 +11,11 @@ namespace SsmsQuickTools.Features.QuickConnect
     /// <summary>
     /// Combo "Quick Connections" de la toolbar. Al elegir una conexion, reconecta la ventana de
     /// query activa (cambia conexion + hace USE de la base indicada en connections.json).
+    /// Soporta autenticacion de Windows y de SQL Server; cuando la entrada SQL no tiene password
+    /// utilizable (nunca se guardo, o el blob DPAPI no se pudo descifrar) se pide antes de conectar.
     /// </summary>
     public sealed class QuickConnectCommands
     {
-        // Seguridad de las conexiones de Quick Connect: sin cifrado obligatorio y validando el
-        // certificado del servidor (equivale a los defaults "Optional"/sin marcar del dialogo de SSMS).
-        private static readonly Microsoft.Data.SqlClient.SqlConnectionEncryptOption EncryptOption =
-            Microsoft.Data.SqlClient.SqlConnectionEncryptOption.Optional;
-        private const bool TrustServerCertificate = false;
-
         private readonly AsyncPackage _package;
         private readonly OleMenuCommandService _commandService;
         private readonly ConnectionCatalog _catalog;
@@ -99,21 +93,12 @@ namespace SsmsQuickTools.Features.QuickConnect
                 return;
             }
 
-            var connectionInfo = new UIConnectionInfo
+            if (!EnsurePassword(connection))
             {
-                ServerName = connection.Server,
-                AuthenticationType = 0, // Windows Authentication
-                ApplicationName = "SsmsQuickTools",
-                // Database Engine: sin este GUID, VerifyConnectionInfo (ConnectionDlg.dll) rechaza
-                // la conexion con "Tipo de conexion inesperado".
-                ServerType = new Guid("8c91a03d-f9b4-46c0-a305-b5dcc79ff907"),
-            };
-            connectionInfo.AdvancedOptions["DATABASE"] = connection.Database;
-            // SSMS arma sus propias conexiones (scripting, etc.) a partir de estas claves
-            // (UIConnectionInfoUtil en ConnectionDlg.dll); sin ellas cae a Mandatory + sin confiar
-            // en el certificado y falla con "cadena de certificacion ... no se confia".
-            connectionInfo.AdvancedOptions["ENCRYPT_CONNECTION"] = EncryptOption.ToString();
-            connectionInfo.AdvancedOptions["TRUST_SERVER_CERTIFICATE"] = TrustServerCertificate.ToString();
+                return;
+            }
+
+            var connectionInfo = QuickConnectionFactory.CreateConnectionInfo(connection);
 
             // Reconecta in-place la ventana activa (mismo servidor: solo cambia de base; servidor
             // distinto: desconecta y reconecta). OpenConnection solo se invoca cuando SsmsHost
@@ -123,7 +108,7 @@ namespace SsmsQuickTools.Features.QuickConnect
             var outcome = SsmsHost.TryReconnectActiveWindow(
                 connectionInfo,
                 connection.Database,
-                () => OpenConnection(connectionInfo, connection.Database),
+                () => QuickConnectionFactory.Open(connectionInfo, connection.Database),
                 out var reason);
 
             switch (outcome)
@@ -135,7 +120,7 @@ namespace SsmsQuickTools.Features.QuickConnect
                 case ReconnectOutcome.NoQueryWindow:
                     // No hay ninguna ventana de query activa: se abre una nueva ya conectada, con
                     // una conexion ADO.NET propia (SsmsHost no abrio ninguna para este caso).
-                    var dbConnection = OpenConnection(connectionInfo, connection.Database);
+                    var dbConnection = QuickConnectionFactory.Open(connectionInfo, connection.Database);
                     try
                     {
                         SsmsHost.OpenNewScriptWindow(null, connectionInfo, dbConnection);
@@ -145,6 +130,7 @@ namespace SsmsQuickTools.Features.QuickConnect
                         dbConnection.Dispose();
                         throw;
                     }
+
                     return;
 
                 case ReconnectOutcome.Blocked:
@@ -154,27 +140,43 @@ namespace SsmsQuickTools.Features.QuickConnect
             }
         }
 
-        private static IDbConnection OpenConnection(UIConnectionInfo connectionInfo, string database)
+        /// <summary>
+        /// Asegura que una conexion SQL tenga password antes de usarla. Devuelve false solo si el
+        /// usuario cancela el dialogo (en ese caso no se intenta conectar).
+        /// </summary>
+        private bool EnsurePassword(ConnectionEntry connection)
         {
-            // Microsoft.Data.SqlClient usa Encrypt=Mandatory por defecto, y SSMS lo muestra asi en la
-            // ventana; se aplican los mismos valores que ConnectToSelection dejo en connectionInfo
-            // (Optional, validando el certificado), a diferencia de BuildConnectionString que confia siempre.
-            var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(
-                SsmsHost.BuildConnectionString(connectionInfo, database))
+            if (!connection.NeedsPassword)
             {
-                Encrypt = EncryptOption,
-                TrustServerCertificate = TrustServerCertificate,
-            };
-            var dbConnection = new Microsoft.Data.SqlClient.SqlConnection(builder.ConnectionString);
-            try
-            {
-                dbConnection.Open();
-                return dbConnection;
+                return true;
             }
-            catch
+
+            using (var dialog = new PasswordPromptDialog(connection))
             {
-                dbConnection.Dispose();
-                throw;
+                if (dialog.ShowDialog() != DialogResult.OK)
+                {
+                    return false;
+                }
+
+                connection.Password = dialog.Password;
+
+                if (dialog.RememberPassword)
+                {
+                    try
+                    {
+                        _catalog.AddOrUpdate(connection);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(
+                            "No se pudo guardar el password en connections.json: " + ex.Message,
+                            "SSMS Quick Tools",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
+                    }
+                }
+
+                return true;
             }
         }
     }

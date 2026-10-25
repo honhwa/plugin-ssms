@@ -11,7 +11,10 @@ milestone plan live in `docs/PLAN.md`; read it before touching `Ssms/` or `Scrip
 
 Features:
 1. **Quick Connect** — a single "Quick Connections" toolbar combo that reconnects the active query window to
-   a named server/database pair from a local `connections.json`.
+   a named server/database pair from a local `connections.json`. Supports Windows and SQL Server
+   authentication (the SQL password is stored DPAPI-encrypted per Windows user and prompted when it can't be
+   decrypted), and is managed from **Quick Tools → Manage Quick Connections...** instead of hand-editing the
+   file — see `specs/03-quick-connections-sql-auth.md`.
 2. **Grid → Script** — copies the active result grid as a self-contained `SELECT` script (CTE + `VALUES`) to
    the clipboard.
 3. **Generar CREATE / Generar ALTER** — commands, exposed in the **Quick Tools** menu (SSMS main menu
@@ -51,6 +54,18 @@ explicit `<Import Project="Sdk.props" .../>` / `<Import Project="Sdk.targets" ..
 depends on `$(IntermediateOutputPath)`, which only exists once `Sdk.targets` has run. If VSIX generation
 silently stops (no `.vsix` in the output dir, no error), check this import order first.
 
+`$(VSToolsPath)` in that import is **not** provided by Visual Studio here: the `Microsoft.VSSDK.BuildTools`
+package's `build/Microsoft.VSSDK.BuildTools.props` sets it to the package's own `tools\VSSDK`, and that
+props only loads from `obj\*.nuget.g.props` after a restore. On a clean checkout (no `obj/`) the property
+is undefined, `Microsoft.Common.props` skips its own definition (it only imports
+`Microsoft.VisualStudioVersion.v17.Common.props` when `$(VisualStudioVersion)` was empty), and MSBuild falls
+back to the legacy `MSBuild.exe.config` search path
+(`C:\Program Files (x86)\MSBuild\Microsoft\VisualStudio\v17.0`) — which no longer exists, so even
+`-t:Restore` dies with *"The imported project ... was not found"*. The csproj therefore resolves
+`VSToolsPath` itself before importing (keeps it when valid, otherwise the MSBuild-extensions path and the
+instance next to `MSBuildBinPath`), imports only `Condition="Exists(...)"`, and has an `EnsureVsSdkTargets`
+target that fails loudly instead of producing a build with no `.vsix`.
+
 Debugging: project properties → Debug → Start external program → `Ssms.exe`, argument `/rootsuffix Exp` if
 the experimental hive exists. `StartProgram`/`StartArguments` are already set in the csproj to
 `C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\Ssms.exe /rootsuffix Exp`.
@@ -62,7 +77,8 @@ cleaning up broken installs.
 
 `SsmsQuickTools.Tests` is xUnit and covers only the pure-logic pieces that have no SSMS dependency:
 `ValuesScriptBuilder` (type inference, escaping, VALUES batching), `ObjectNameParser` (name parsing),
-`XmlSpreadsheetBuilder`, `CommaListBuilder`, and `TokenScanner`/`SqlContextScanner`/`AutoReplacementExpander` (Auto
+`XmlSpreadsheetBuilder`, `CommaListBuilder`, `ConnectionsJson`/`SecretProtector` (Quick Connect file format,
+legacy/Windows/SQL entries, DPAPI round-trip), and `TokenScanner`/`SqlContextScanner`/`AutoReplacementExpander` (Auto
 Replacement's token matching, string/comment detection, and cursor-marker logic).
 Everything else (grid reading, SMO scripting, connection switching, the editor command filter) is
 verified manually against a real SSMS instance — see the "Verificación" section of `docs/PLAN.md` for
@@ -99,10 +115,15 @@ Both feed `TsvParser` and produce a `ResultSetData` (columns + string rows — n
 later).
 
 **`Features/`** — one folder per feature, each independent of the others:
-- `QuickConnect/` — `ConnectionCatalog` loads/watches `%APPDATA%\SsmsQuickTools\connections.json`, a flat
-  list of named `{name, server, database}` entries (Windows-integrated auth only, no credentials in the
-  file); `QuickConnectCommands` drives the single "Quick Connections" toolbar combo and reconnects the
-  active query window via `SsmsHost` as soon as an entry is selected.
+- `QuickConnect/` — `ConnectionCatalog` loads/watches/rewrites `%APPDATA%\SsmsQuickTools\connections.json`,
+  a flat list of named `{name, server, database, authentication, user, password}` entries. `ConnectionsJson`
+  is the pure (SSMS-free, unit-tested) parser/serializer; `SecretProtector` is DPAPI(CurrentUser)-based and
+  keeps the SQL password encrypted at rest, so a copied file just re-prompts. `QuickConnectionFactory` is the
+  single place that turns an entry into `UIConnectionInfo` + an ADO.NET connection (also used by the dialog's
+  "Test connection"). `QuickConnectCommands` drives the "Quick Connections" toolbar combo and reconnects the
+  active query window via `SsmsHost`; `ManageConnectionsCommand`/`ManageConnectionsDialog` +
+  `PasswordPromptDialog` are the WinForms UI. Writes are atomic (temp file + `File.Replace`) because the
+  watcher and SSMS may read the file mid-save.
 - `ScriptData/` — `ValuesScriptBuilder` is pure logic: per-column type inference over a fixed lattice
   (`bit → int → bigint → decimal → uniqueidentifier → datetime2 → nvarchar`, picking the most restrictive
   type that fits every non-null value in the column), quote escaping, and splitting into multiple
@@ -140,15 +161,23 @@ later).
 
 ## SSMS reference assemblies (`lib/ssms22.6/`)
 
-Committed DLLs copied from a local SSMS 22.6 install (`Common7\IDE` and
+Reference DLLs copied from a local SSMS 22.6 install (`Common7\IDE` and
 `Common7\IDE\Extensions\Application`), referenced with `HintPath`, `Private=false`,
 `SpecificVersion=false`. They exist only to compile against — not redistributed in the VSIX. See
-`lib/ssms22.6/README.md` for exactly which types come from which DLL and why.
+`lib/ssms22.6/README.md` for exactly which types come from which DLL and why, and `_SOURCE.txt` for
+which SSMS build the current copies came from.
+
+The DLLs are **gitignored** (`.gitignore`: `lib/ssms22.6/*.dll`), so a fresh clone does not compile until
+they are copied in — every `CS0234`/`CS0246` about `Microsoft.SqlServer.*`, `SqlWorkbench.Interfaces`,
+`SQLEditors`, `ObjectExplorer`, `UIConnectionInfo` or `SqlConnection` is this, not a code problem.
 
 **Always reference the lowest supported SSMS version's DLLs (22.6.0), not whatever is installed locally.**
-.NET Framework binds these by strong name; a reference built against a newer assembly won't load against an
-older SSMS install. If the dev machine has a newer SSMS, copy that machine's 22.6.0 DLLs into
-`lib/ssms22.6/` rather than referencing the live install directly.
+AssemblyVersion is stable inside SSMS 22 (`22.200.0.0`, SMO `18.100.0.0`, SqlClient `6.0.0.0` — verified
+identical between 22.4 and 22.11 copies), so binding does not change between minors; the reason to pin 22.6
+is **API surface** — compiling against a newer assembly lets a member that 22.6 lacks slip in, and that
+only fails at runtime (`MissingMethodException`/`TypeLoadException`) on an older install. If the dev
+machine has a newer SSMS, copy that machine's 22.6.0 DLLs into `lib/ssms22.6/` rather than referencing the
+live install directly.
 
 `Microsoft.Data.SqlClient` is used instead of `System.Data.SqlClient` because the SMO assemblies
 (`Microsoft.SqlServer.Smo.dll` from SSMS 22.6) expect it.

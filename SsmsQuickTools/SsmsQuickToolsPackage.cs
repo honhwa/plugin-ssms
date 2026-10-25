@@ -41,6 +41,7 @@ namespace SsmsQuickTools
 
             var catalog = new ConnectionCatalog();
             new QuickConnectCommands(this, commandService, catalog).Register();
+            new ManageConnectionsCommand(this, commandService, catalog).Register();
             new ScriptDataCommand(this, commandService).Register();
             new ScriptObjectCommands(this, commandService).Register();
             new CopyXmlSpreadsheetCommand(this, commandService).Register();

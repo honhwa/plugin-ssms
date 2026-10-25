@@ -150,6 +150,20 @@
           <ToolTipText>Expands the token glued to the cursor according to autoreplacement.xml</ToolTipText>
         </Strings>
       </Button>
+      <!-- Administrador de Quick Connections (spec 03): alta/edicion/baja de conexiones y prueba
+           de conexion, sin editar connections.json a mano. Vive directo en Quick Tools (no en los
+           submenus Query/Results Grid, que agrupan cosas que actuan sobre la ventana activa). -->
+      <Button guid="guidQuickToolsCmdSet" id="cmdidManageConnectionsCommand" priority="0x0800" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="QuickToolsMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="Settings" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Manage Quick Connections...</ButtonText>
+          <MenuText>Manage Quick Connections...</MenuText>
+          <ToolTipText>Agrega, edita, prueba o elimina las conexiones del combo Quick Connections</ToolTipText>
+        </Strings>
+      </Button>
+
       <!-- About: version y fecha de build, para saber que .vsix esta instalado durante pruebas. -->
       <Button guid="guidQuickToolsCmdSet" id="cmdidAboutCommand" priority="0x0000" type="Button">
         <Parent guid="guidQuickToolsCmdSet" id="AboutMenuGroup" />
@@ -241,6 +255,7 @@
       <IDSymbol name="cmdidAboutCommand" value="0x0203" />
       <IDSymbol name="cmdidLocateObjectCommand" value="0x0204" />
       <IDSymbol name="cmdidCopyCommaListCommand" value="0x0205" />
+      <IDSymbol name="cmdidManageConnectionsCommand" value="0x0206" />
     </GuidSymbol>
 
     <GuidSymbol name="guidEditorContextCmdSet" value="{d71b3e2f-929e-4f15-9652-e299c6a4b288}">

@@ -31,6 +31,14 @@
     <Compile Include="..\SsmsQuickTools\Features\AutoReplacement\TokenScanner.cs" Link="AutoReplacement\TokenScanner.cs" />
     <Compile Include="..\SsmsQuickTools\Features\AutoReplacement\SqlContextScanner.cs" Link="AutoReplacement\SqlContextScanner.cs" />
     <Compile Include="..\SsmsQuickTools\Features\AutoReplacement\AutoReplacementExpander.cs" Link="AutoReplacement\AutoReplacementExpander.cs" />
+    <Compile Include="..\SsmsQuickTools\Features\QuickConnect\ConnectionEntry.cs" Link="QuickConnect\ConnectionEntry.cs" />
+    <Compile Include="..\SsmsQuickTools\Features\QuickConnect\ConnectionsJson.cs" Link="QuickConnect\ConnectionsJson.cs" />
+    <Compile Include="..\SsmsQuickTools\Features\QuickConnect\SecretProtector.cs" Link="QuickConnect\SecretProtector.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- DPAPI (SecretProtector): en net48 vive en System.Security. -->
+    <Reference Include="System.Security" />
   </ItemGroup>
 
   <ItemGroup>

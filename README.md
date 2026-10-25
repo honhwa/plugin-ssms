@@ -4,7 +4,10 @@ Extensión VSIX para SQL Server Management Studio **22.6.0 en adelante**.
 
 ## Funcionalidades
 
-1. **Quick Connect**: combo "Quick Connections" en toolbar para reconectar la ventana de query activa a una conexión (servidor + base) definida por nombre en un archivo de configuración local.
+1. **Quick Connect**: combo "Quick Connections" en toolbar para reconectar la ventana de query activa a una
+   conexión (servidor + base) definida por nombre en un archivo de configuración local. Admite autenticación
+   de Windows y de SQL Server (usuario/password, con el password cifrado en disco), y se administra desde
+   **Quick Tools → Manage Quick Connections...**.
 2. **Grid → Script**: copia el resultado de una consulta al portapapeles como uno o más statements `INSERT INTO XXXXXXXX SELECT * FROM (VALUES ...) v (...)`, listos para pegar sobre la tabla destino real (reemplazando `XXXXXXXX`) y ejecutar.
 3. **Generar CREATE / Generar ALTER**: comandos en el menú **Quick Tools** (barra principal) que scriptean el objeto bajo el cursor o la selección.
 4. **Copiar selección como XML Spreadsheet**: copia la selección del grid de resultados al portapapeles en formato XML Spreadsheet (Excel), preservando tipo y precisión.
@@ -75,19 +78,31 @@ borran; para eliminarlos, hacerlo a mano.
 
 ## Configurar Quick Connect
 
-Editar `%APPDATA%\SsmsQuickTools\connections.json` (se crea con un ejemplo si no existe al iniciar SSMS).
-Lista plana de conexiones con nombre, cada una con su servidor y base:
+La forma recomendada es **Quick Tools → Manage Quick Connections...**: abre un administrador con la lista
+de conexiones y permite crear, editar, probar y eliminar sin tocar el archivo a mano.
+
+También se puede editar `%APPDATA%\SsmsQuickTools\connections.json` (se crea con un ejemplo si no existe
+al iniciar SSMS). Lista plana de conexiones con nombre, cada una con su servidor, base y método de
+autenticación:
 
 ```json
 {
   "connections": [
-    { "name": "DEV01.Figuritas", "server": "LENOVOJOSE\\DEV01", "database": "Figuritas" },
-    { "name": "DEV01.ClinicaTurnos", "server": "LENOVOJOSE\\DEV01", "database": "ClinicaTurnos" }
+    { "name": "DEV01.Figuritas", "server": "LENOVOJOSE\\DEV01", "database": "Figuritas", "authentication": "windows" },
+    { "name": "PROD.Ventas", "server": "sql-prod01\\INST1", "database": "Ventas",
+      "authentication": "sql", "user": "app_ventas", "password": "dpapi:AQAAANCMnd8BFdERjHo..." }
   ]
 }
 ```
 
-Solo autenticación de Windows; el archivo no admite usuario/password.
+- `authentication`: `windows` (por defecto si se omite, así que los archivos viejos siguen funcionando) o
+  `sql`. Con `sql` hacen falta `user` y, opcionalmente, `password`.
+- `password` lo escribe el administrador **cifrado con DPAPI** (ámbito del usuario de Windows actual), así
+  que solo se puede descifrar en esta cuenta y en esta máquina. Si el archivo se copia a otra cuenta u
+  equipo, ese password queda ilegible y la extensión lo pide al conectar (con opción de volver a guardarlo).
+- Si se escribe un `password` en claro a mano, se acepta tal cual; al guardar desde el administrador queda
+  cifrado.
+
 
 ## Configurar Auto Replacement
 

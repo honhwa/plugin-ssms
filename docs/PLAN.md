@@ -133,6 +133,13 @@ Lista plana de conexiones con nombre (un registro = un par servidor+base):
 
 Solo autenticación integrada; no se almacenan credenciales.
 
+> **Actualizado (spec 03):** además de Windows Authentication, cada entrada puede usar SQL Server
+> Authentication (`"authentication": "sql"`, `"user"`, `"password"`). El password se guarda cifrado con DPAPI
+> (ámbito CurrentUser) y, si no se puede descifrar (archivo copiado a otro usuario/equipo), se pide al
+> conectar. Las entradas sin `authentication` siguen siendo de Windows. Además del archivo, hay un
+> administrador en **Quick Tools → Manage Quick Connections...** para alta/edición/baja y "probar conexión".
+> Ver `specs/03-quick-connections-sql-auth.md`.
+
 En el `.vsct`, un combo único ("Quick Connections") en una toolbar propia:
 
 ```xml

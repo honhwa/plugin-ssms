@@ -118,7 +118,12 @@ namespace SsmsQuickTools.Ssms
 
             var sameServer = isConnected && activeInfo != null
                 && string.Equals(activeInfo.ServerName, target.ServerName, StringComparison.OrdinalIgnoreCase)
-                && activeInfo.AuthenticationType == target.AuthenticationType;
+                && activeInfo.AuthenticationType == target.AuthenticationType
+                // Mismo servidor con otro usuario SQL no es "la misma conexion": cambiar solo
+                // CurrentDB dejaria la ventana con las credenciales anteriores, asi que se trata como
+                // servidor distinto y se reconecta (AuthenticationType 1 = SQL Server).
+                && (target.AuthenticationType != 1
+                    || string.Equals(activeInfo.UserName ?? string.Empty, target.UserName ?? string.Empty, StringComparison.OrdinalIgnoreCase));
 
             if (sameServer)
             {

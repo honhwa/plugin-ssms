@@ -91,6 +91,8 @@
     </Reference>
     <Reference Include="System.Data" />
     <Reference Include="System.Design" />
+    <!-- ProtectedData (DPAPI) para cifrar el password de las conexiones SQL: SecretProtector. -->
+    <Reference Include="System.Security" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Xml" />
@@ -169,6 +171,32 @@
 
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 
-  <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="'$(VSToolsPath)' != ''" />
+  <!-- Microsoft.VsSDK.targets (empaquetado VSIX) vive en la instancia de VS:
+       <VS>\MSBuild\Microsoft\VisualStudio\v17.0\VSSDK. $(VSToolsPath) no siempre esta definido:
+       Microsoft.Common.props solo importa Microsoft.VisualStudioVersion.v17.Common.props (el archivo
+       que lo define) si $(VisualStudioVersion) venia vacio, y las plantillas clasicas de VSIX lo
+       declaraban en el propio .csproj. Cuando queda vacio, MSBuild cae en el "fallback search path"
+       de MSBuild.exe.config (C:\Program Files (x86)\MSBuild\Microsoft\VisualStudio\v17.0), que en
+       VS2022 ya no existe -> "The imported project ... was not found".
+       Por eso aqui se resuelve explicitamente: se respeta $(VSToolsPath) si ya apunta al targets y,
+       si no, se prueban las rutas reales de la instancia (junto al MSBuild en uso y bajo
+       MSBuildExtensionsPath, que en msbuild.exe apunta a <VS>\MSBuild). -->
+  <PropertyGroup>
+    <_VsSdkTargetsRelative>VSSDK\Microsoft.VsSDK.targets</_VsSdkTargetsRelative>
+    <_VsSdkVersion Condition="'$(VisualStudioVersion)' != ''">$(VisualStudioVersion)</_VsSdkVersion>
+    <_VsSdkVersion Condition="'$(_VsSdkVersion)' == ''">17.0</_VsSdkVersion>
+    <_VsToolsPathFromBinPath>$([System.IO.Path]::GetFullPath('$(MSBuildBinPath)\..\..\..'))\Microsoft\VisualStudio\v$(_VsSdkVersion)</_VsToolsPathFromBinPath>
+    <VSToolsPath Condition="!Exists('$(VSToolsPath)\$(_VsSdkTargetsRelative)') and Exists('$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(_VsSdkVersion)\$(_VsSdkTargetsRelative)')">$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(_VsSdkVersion)</VSToolsPath>
+    <VSToolsPath Condition="!Exists('$(VSToolsPath)\$(_VsSdkTargetsRelative)') and Exists('$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(_VsSdkVersion)\$(_VsSdkTargetsRelative)')">$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(_VsSdkVersion)</VSToolsPath>
+    <VSToolsPath Condition="!Exists('$(VSToolsPath)\$(_VsSdkTargetsRelative)') and Exists('$(_VsToolsPathFromBinPath)\$(_VsSdkTargetsRelative)')">$(_VsToolsPathFromBinPath)</VSToolsPath>
+  </PropertyGroup>
+
+  <Import Project="$(VSToolsPath)\$(_VsSdkTargetsRelative)" Condition="Exists('$(VSToolsPath)\$(_VsSdkTargetsRelative)')" />
+
+  <!-- Si el import se salta, el .vsix no se genera y el build "funciona" en silencio: fallar claro. -->
+  <Target Name="EnsureVsSdkTargets" BeforeTargets="PrepareForBuild"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(CreateVsixContainer)' == 'true' and '$(VsSdkTargetsImported)' != 'true'">
+    <Error Text="No se encontro Microsoft.VsSDK.targets (VSToolsPath='$(VSToolsPath)', MSBuildBinPath='$(MSBuildBinPath)'). Compile con el MSBuild de Visual Studio 2022 que tiene el workload &quot;Visual Studio extension development&quot; (MSBuild\Current\Bin\amd64\MSBuild.exe), no con 'dotnet build'." />
+  </Target>
 
 </Project>
