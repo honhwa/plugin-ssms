@@ -23,9 +23,10 @@ namespace SsmsQuickTools.Features.ScriptData
     }
 
     /// <summary>
-    /// Genera uno o mas statements SQL <c>INSERT INTO ... SELECT * FROM (VALUES ...) v (...)</c>
-    /// que reproducen el resultado de un grid, listos para pegar sobre la tabla destino real
-    /// (reemplazando el marcador <see cref="DefaultTargetTable"/>) y ejecutar. Logica pura, sin
+    /// Genera uno o mas statements SQL <c>SELECT * FROM (VALUES ...) v (...)</c> que reproducen el
+    /// resultado de un grid, precedidos por una linea <c>--INSERT INTO tabla (columnas)</c> comentada:
+    /// el script ejecuta tal cual como SELECT; para insertar se descomenta esa linea y se reemplaza
+    /// el marcador <see cref="DefaultTargetTable"/>. Logica pura, sin
     /// dependencias de SSMS: inferencia de tipos por columna a partir del texto de las celdas,
     /// escapado y particionado en bloques (VALUES admite hasta 1000 filas por constructor; por
     /// encima de eso se emite un INSERT por bloque).
@@ -43,7 +44,7 @@ namespace SsmsQuickTools.Features.ScriptData
 
         /// <summary>
         /// Construye el script completo. <paramref name="targetTable"/> se emite crudo (sin
-        /// QuoteIdentifier) tras <c>INSERT INTO</c>: por defecto es el marcador <see cref="DefaultTargetTable"/>.
+        /// QuoteIdentifier) tras <c>--INSERT INTO</c>: por defecto es el marcador <see cref="DefaultTargetTable"/>.
         /// </summary>
         public static string Build(IReadOnlyList<string> columns, IReadOnlyList<string[]> rows, string targetTable = DefaultTargetTable)
         {
@@ -64,7 +65,7 @@ namespace SsmsQuickTools.Features.ScriptData
                 // Sin filas: se genera un SELECT vacio tipado como NVARCHAR para que al menos
                 // ejecute sin error, aclarando que no habia datos.
                 var emptySelect = string.Join(", ", quotedColumns.Select(c => $"CAST(NULL AS nvarchar(1)) AS {c}"));
-                return $"INSERT INTO {targetTable}{Environment.NewLine}    SELECT {emptySelect} WHERE 1 = 0;";
+                return $"--INSERT INTO {targetTable} ({columnList}){Environment.NewLine}    SELECT {emptySelect} WHERE 1 = 0;";
             }
 
             var columnTypes = InferColumnTypes(columns.Count, rows);
@@ -77,7 +78,7 @@ namespace SsmsQuickTools.Features.ScriptData
                 {
                     sb.AppendLine();
                 }
-                sb.Append("INSERT INTO ").Append(targetTable).AppendLine();
+                sb.Append("--INSERT INTO ").Append(targetTable).Append(" (").Append(columnList).Append(")").AppendLine();
                 sb.AppendLine("    SELECT * FROM (VALUES");
                 AppendValuesBlock(sb, blocks[b], columnTypes);
                 sb.Append("    ) v (").Append(columnList).Append(");");
