@@ -1,16 +1,21 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Windows.Forms;
 using Microsoft.Data.SqlClient;
+using Microsoft.SqlServer.Management.Common;
+using Microsoft.SqlServer.Management.Sdk.Sfc;
 using Microsoft.SqlServer.Management.Smo.RegSvrEnum;
 using Microsoft.SqlServer.Management.UI.VSIntegration.Editors;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.TextManager.Interop;
+using IManagedConnection = Microsoft.SqlServer.Management.UI.VSIntegration.ObjectExplorer.IManagedConnection;
 
 namespace SsmsQuickTools.Ssms
 {
@@ -792,6 +797,185 @@ namespace SsmsQuickTools.Ssms
             {
                 Application.DoEvents();
                 System.Threading.Thread.Sleep(15);
+            }
+        }
+
+        /// <summary>
+        /// Abre el editor de datos nativo de SSMS ("Edit Top N Rows") sobre una tabla (spec 04, Milestone 9).
+        /// Reproduce lo que hace el comando nativo de Object Explorer sin pasar por el arbol: escribe un
+        /// <c>.dtq</c> temporal con <c>SELECT TOP (N) * FROM tabla</c> y llama a
+        /// <c>ScriptFactory.CreateDesigner(DocumentType.OpenTable, ..., urn + "/Data", conexion, archivo)</c>
+        /// (metodo <c>internal</c>, por reflection). Ver docs/PLAN.md Milestone 9 para la cadena nativa.
+        /// </summary>
+        /// <param name="connectionInfo">Conexion de la ventana de query activa (solo Windows o SQL Authentication).</param>
+        /// <param name="database">Base de datos que contiene la tabla.</param>
+        /// <param name="schema">Schema de la tabla.</param>
+        /// <param name="table">Nombre de la tabla (sin corchetes).</param>
+        /// <param name="rowCount">Cantidad de filas (TOP). Debe ser mayor que cero.</param>
+        /// <param name="failureReason">Motivo del fallo cuando devuelve false.</param>
+        public static bool TryEditTopRows(UIConnectionInfo connectionInfo, string database, string schema, string table, int rowCount, out string failureReason)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            failureReason = null;
+
+            if (connectionInfo == null)
+            {
+                failureReason = "No hay una conexion activa.";
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(database) || string.IsNullOrEmpty(schema) || string.IsNullOrEmpty(table) || rowCount <= 0)
+            {
+                failureReason = "Faltan datos de la tabla (base de datos, schema o nombre).";
+                return false;
+            }
+
+            // Igual que BuildConnectionString: solo Windows (0) y SQL Authentication (1).
+            if (connectionInfo.AuthenticationType != 0 && connectionInfo.AuthenticationType != 1)
+            {
+                failureReason = "El tipo de autenticacion de la conexion activa no esta soportado (solo Windows y SQL Server).";
+                return false;
+            }
+
+            var factory = ScriptFactory.Instance;
+            if (factory == null)
+            {
+                failureReason = "No se pudo acceder a ScriptFactory de SSMS.";
+                return false;
+            }
+
+            var createDesigner = factory.GetType()
+                .GetMethods(InstanceAny)
+                .FirstOrDefault(m => m.Name == "CreateDesigner" && m.GetParameters().Length == 5
+                    && m.GetParameters()[0].ParameterType == typeof(DocumentType)
+                    && m.GetParameters()[4].ParameterType == typeof(string));
+            if (createDesigner == null)
+            {
+                failureReason = "SSMS no expone ScriptFactory.CreateDesigner(..., fileName) (version de SSMS no soportada).";
+                return false;
+            }
+
+            string dtqPath = null;
+            try
+            {
+                var sqlInfo = new SqlConnectionInfo(connectionInfo.ServerName)
+                {
+                    DatabaseName = database,
+                    TrustServerCertificate = true,
+                };
+                if (connectionInfo.AuthenticationType == 1 && !string.IsNullOrEmpty(connectionInfo.UserName))
+                {
+                    sqlInfo.UseIntegratedSecurity = false;
+                    sqlInfo.UserName = connectionInfo.UserName;
+                    sqlInfo.Password = connectionInfo.Password ?? string.Empty;
+                }
+                else
+                {
+                    sqlInfo.UseIntegratedSecurity = true;
+                }
+
+                var urn = new Urn(string.Format(
+                    "Server[@Name='{0}']/Database[@Name='{1}']/Table[@Name='{2}' and @Schema='{3}']/Data",
+                    EscapeUrnValue(connectionInfo.ServerName),
+                    EscapeUrnValue(database),
+                    EscapeUrnValue(table),
+                    EscapeUrnValue(schema)));
+
+                dtqPath = WriteTopNRowsQueryFile(database, schema, table, rowCount);
+
+                // Parametros: (DocumentType, DocumentOptions, Urn, IManagedConnection, string fileName).
+                var args = new object[]
+                {
+                    DocumentType.OpenTable,
+                    DocumentOptions.ManageConnection,
+                    urn,
+                    new ManagedConnectionAdapter(sqlInfo),
+                    dtqPath,
+                };
+                createDesigner.Invoke(factory, args);
+                return true;
+            }
+            catch (TargetInvocationException ex)
+            {
+                failureReason = (ex.InnerException ?? ex).Message;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                failureReason = ex.Message;
+                return false;
+            }
+            finally
+            {
+                // El comando nativo borra el .dtq justo despues de CreateDesigner (lo lee de forma sincrona).
+                if (dtqPath != null)
+                {
+                    try
+                    {
+                        File.Delete(dtqPath);
+                    }
+                    catch (IOException)
+                    {
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                    }
+                }
+            }
+        }
+
+        private static string EscapeUrnValue(string value) => value.Replace("'", "''");
+
+        private static string QuoteIdentifier(string name) => "[" + name.Replace("]", "]]") + "]";
+
+        /// <summary>
+        /// Escribe el <c>.dtq</c> (formato del comando nativo, ver <c>OpenTableHelperClass.CreateFile</c>) con
+        /// el SELECT a editar. UTF-16, como el nativo. Devuelve la ruta del archivo temporal.
+        /// </summary>
+        private static string WriteTopNRowsQueryFile(string database, string schema, string table, int rowCount)
+        {
+            var script = string.Format(
+                "SELECT TOP ({0}) *  FROM {1}.{2}.{3}",
+                rowCount,
+                QuoteIdentifier(database),
+                QuoteIdentifier(schema),
+                QuoteIdentifier(table)).Replace("\"", "\"\"");
+
+            var sb = new StringBuilder();
+            sb.Append("[D035CF15-9EDB-4855-AF42-88E6F6E66540, 2.00]\r\n");
+            sb.Append("Begin Query = \"Query1.dtq\"\r\n");
+            sb.Append("Begin RunProperties =\r\n");
+            sb.Append("SQL = \"").Append(script).Append("\"\r\n");
+            sb.Append("ParamPrefix = \"@\"\r\n");
+            sb.Append("ParamSuffix = \"\"\r\n");
+            sb.Append("ParamSuffix = \"\\\"\r\n");
+            sb.Append("End\r\n");
+            sb.Append("End\r\n");
+
+            var path = Path.Combine(Path.GetTempPath(), "SsmsQuickTools_" + Guid.NewGuid().ToString("N") + ".dtq");
+            File.WriteAllText(path, sb.ToString(), Encoding.Unicode);
+            return path;
+        }
+
+        /// <summary>
+        /// <c>IManagedConnection</c> minimo (Connection + Close) para <c>ScriptFactory.CreateDesigner</c>.
+        /// El nativo es <c>ManagedConnection</c>, interno de ObjectExplorer.dll.
+        /// </summary>
+        private sealed class ManagedConnectionAdapter : IManagedConnection
+        {
+            public ManagedConnectionAdapter(SqlOlapConnectionInfoBase connection)
+            {
+                Connection = connection;
+            }
+
+            public SqlOlapConnectionInfoBase Connection { get; }
+
+            public void Close()
+            {
+            }
+
+            public void Dispose()
+            {
             }
         }
 

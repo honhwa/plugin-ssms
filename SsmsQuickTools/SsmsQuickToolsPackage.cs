@@ -10,6 +10,7 @@ using SsmsQuickTools.Features.AutoReplacement;
 using SsmsQuickTools.Features.CommaList;
 using SsmsQuickTools.Features.CopyHeaders;
 using SsmsQuickTools.Features.CopyXmlSpreadsheet;
+using SsmsQuickTools.Features.EditTopRows;
 using SsmsQuickTools.Features.LocateObject;
 using SsmsQuickTools.Features.QuickConnect;
 using SsmsQuickTools.Features.ScriptData;
@@ -49,6 +50,7 @@ namespace SsmsQuickTools
             new ScriptObjectCommands(this, commandService).Register();
             new CopyXmlSpreadsheetCommand(this, commandService).Register();
             new LocateObjectCommand(this, commandService).Register();
+            new EditTopNRowsCommand(this, commandService).Register();
             new CopyCommaListCommand(this, commandService).Register();
             new CopyAllHeadersCommand(this, commandService).Register();
             new CopySelectedHeadersCommand(this, commandService).Register();
