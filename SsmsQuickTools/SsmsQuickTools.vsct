@@ -189,6 +189,21 @@
         </Strings>
       </Button>
 
+      <!-- Edit Top N Rows (spec 04): abre el editor de datos nativo con las primeras 200 filas de la
+           tabla seleccionada o bajo el cursor. Mismo patron que Locate: Quick Tools > Query + click
+           derecho del editor (CommandPlacements). -->
+      <Button guid="guidQuickToolsCmdSet" id="cmdidEditTopNRowsCommand" priority="0x0140" type="Button">
+        <Parent guid="guidQuickToolsCmdSet" id="QueryMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="Table" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>Edit Top N Rows</ButtonText>
+          <MenuText>Edit Top N Rows</MenuText>
+          <ToolTipText>Opens the SSMS data editor with the first 200 rows of the table under the cursor</ToolTipText>
+        </Strings>
+      </Button>
+
       <!-- Copy Selection as Comma List: una linea "a, b, c" por columna seleccionada, lista para
            pegar en un IN (...). Mismo patron que ScriptData / CopyXmlSpreadsheet. -->
       <Button guid="guidQuickToolsCmdSet" id="cmdidCopyCommaListCommand" priority="0x0120" type="Button">
@@ -255,6 +270,9 @@
     <CommandPlacement guid="guidQuickToolsCmdSet" id="cmdidLocateObjectCommand" priority="0x0120">
       <Parent guid="guidQuickToolsCmdSet" id="QueryEditorContextMenuGroup" />
     </CommandPlacement>
+    <CommandPlacement guid="guidQuickToolsCmdSet" id="cmdidEditTopNRowsCommand" priority="0x0130">
+      <Parent guid="guidQuickToolsCmdSet" id="QueryEditorContextMenuGroup" />
+    </CommandPlacement>
     <CommandPlacement guid="guidQuickToolsCmdSet" id="cmdidScriptDataCommand" priority="0x0110">
       <Parent guid="guidQuickToolsCmdSet" id="ResultsGridContextGroup" />
     </CommandPlacement>
@@ -312,6 +330,7 @@
       <IDSymbol name="cmdidCopyCommaListCommand" value="0x0205" />
       <IDSymbol name="cmdidCopyAllHeadersCommand" value="0x0206" />
       <IDSymbol name="cmdidCopySelectedHeadersCommand" value="0x0207" />
+      <IDSymbol name="cmdidEditTopNRowsCommand" value="0x0208" />
     </GuidSymbol>
 
     <!-- GUID_SQLEditorGroup de SQLEditors.dll; 0x70 = IDM_SQLWB_SQLRESGRID_CONTEXT,

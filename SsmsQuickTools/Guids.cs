@@ -53,5 +53,7 @@ namespace SsmsQuickTools
         // Comandos "Copy All Headers" / "Copy Selected Headers" (menu Quick Tools > Results Grid + click derecho del grid)
         public const uint CopyAllHeadersCommand = 0x0206;
         public const uint CopySelectedHeadersCommand = 0x0207;
+        // Comando "Edit Top N Rows" (menu contextual del editor + Quick Tools > Query)
+        public const uint EditTopNRowsCommand = 0x0208;
     }
 }
